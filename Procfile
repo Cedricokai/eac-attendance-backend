@@ -1,0 +1,1 @@
+web: java -jar target/my-spring-app.jar --server.port=$PORT
