@@ -13,11 +13,15 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:5173", "https://cedricokai.github.io")
-                        .allowedMethods("GET", "POST", "PUT", "DELETE")
+                registry.addMapping("/**")  // Applies to all endpoints
+                        .allowedOrigins(
+                                "https://cedricokai.github.io",  // Your GitHub Pages URL
+                                "http://localhost:3000"          // For local development
+                        )
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
-                        .allowCredentials(true);
+                        .allowCredentials(true)
+                        .maxAge(3600);  // Cache preflight response for 1 hour
             }
         };
     }
