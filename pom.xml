@@ -107,9 +107,11 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- https://mvnrepository.com/artifact/org.neo4j.driver/neo4j-java-driver -->
 		<dependency>
 			<groupId>org.neo4j.driver</groupId>
-			<artifactId>neo4j-java-driver-spring-boot-starter</artifactId>
+			<artifactId>neo4j-java-driver</artifactId>
+			<version>6.0.0-alpha01</version>
 		</dependency>
 
 		<dependency>
