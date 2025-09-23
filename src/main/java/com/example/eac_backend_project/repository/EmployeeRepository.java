@@ -27,4 +27,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
             @Param("endDate") LocalDate endDate);
 
     long countByStartDate(LocalDate startDate);
+    Optional<Employee> findByEmail(String email);
+
 }

@@ -75,6 +75,7 @@ public class LeaveService {
     }
 
     // ------------------ PLANNER ------------------
+    // In LeaveService.java - Ensure proper status updates
     @Transactional
     public Leave plannerApprove(Long leaveId, String feedback) {
         Leave leave = leaveRepository.findById(leaveId)
@@ -91,8 +92,12 @@ public class LeaveService {
         leave.setPlannerStatus("Approved");
         leave.setPlannerFeedback(feedback);
         leave.setPlannerActionDate(LocalDateTime.now());
-        leave.setHrStatus("Pending"); // ready for HR
-        leave.setStatus("Planner_Approved");
+        leave.setHrStatus("Pending");
+
+        // Update overall status
+        if ("Pending".equalsIgnoreCase(leave.getHrStatus())) {
+            leave.setStatus("Planner_Approved");
+        }
 
         return leaveRepository.save(leave);
     }

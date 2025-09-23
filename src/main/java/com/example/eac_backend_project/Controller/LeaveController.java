@@ -2,9 +2,12 @@ package com.example.eac_backend_project.Controller;
 
 import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
 import com.example.eac_backend_project.Service.LeaveService;
+import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.Leave;
+import com.example.eac_backend_project.repository.EmployeeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +20,10 @@ public class LeaveController {
 
     @Autowired
     private LeaveService leaveService;
+
+    @Autowired
+    private EmployeeRepository employeeRepository;
+
 
     @PostMapping
     public ResponseEntity<Leave> createLeave(@RequestBody Leave leave) {
@@ -93,6 +100,20 @@ public class LeaveController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    @GetMapping("/my-requests")
+    public List<Leave> getMyRequests(@AuthenticationPrincipal org.springframework.security.core.userdetails.User userDetails) {
+        // 1. Get username from Spring Security
+        String username = userDetails.getUsername();
+
+        // 2. Find employee by username
+        Employee employee = employeeRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        // 3. Return that employee’s leaves
+        return leaveService.getLeavesByEmployeeId(employee.getId());
+    }
+
 
 
 }
