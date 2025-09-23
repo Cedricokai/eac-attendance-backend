@@ -43,7 +43,7 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
-        user.setRole(Role.ROLE_CUSTOMER);
+        user.setRole(Role.ROLE_ADMIN);
         User savedUser = userService.registerUser(user);
         return ResponseEntity.ok("User registered successfully. Redirect to login.");
     }
