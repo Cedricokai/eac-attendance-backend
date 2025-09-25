@@ -153,6 +153,15 @@ public class PayrollService {
                 record.setTotalHours(totalHours);
                 record.setOvertimeHours(overtimeHours);
 
+                // === Set allowances from Employee (or from any source you store them) ===
+                record.setRentAllowance(employee.getRentAllowance() != null ? employee.getRentAllowance() : 0.0);
+                record.setTransportAllowance(employee.getTransportAllowance() != null ? employee.getTransportAllowance() : 0.0);
+                record.setClothingAllowance(employee.getClothingAllowance() != null ? employee.getClothingAllowance() : 0.0);
+                record.setOtherAllowance(employee.getOtherAllowance() != null ? employee.getOtherAllowance() : 0.0);
+
+// At this point, totalAllowances, taxableAllowances, and nonTaxableAllowances are automatically recalculated
+
+
                 // Debug before calculation
                 logger.debug("Employee {} -> WorkingDays: {}, TotalHours: {}, OvertimeHours: {}, MinRate: {}",
                         employeeId, workingDays, totalHours, overtimeHours, employee.getMinimumRate());
@@ -246,5 +255,18 @@ public class PayrollService {
                 "endDate", latestPeriod.getEndDate().toString(),
                 "periodDates", latestPeriod.getStartDate() + " to " + latestPeriod.getEndDate()
         );
+    }
+
+    public PayrollRecord getEmployeePayslip(Long periodId, Long employeeId) {
+        return payrollRecordRepository.findByPeriodIdAndEmployeeId(periodId, employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No payslip found for employee " + employeeId + " in period " + periodId));
+    }
+
+    public byte[] generatePayslipPDF(Long periodId, Long employeeId) {
+        // Implementation for PDF generation using libraries like Apache PDFBox or iText
+        // This would create a formatted PDF version of the payslip
+        // For now, return empty array - you'll need to implement PDF generation
+        return new byte[0];
     }
 }

@@ -36,6 +36,37 @@ public class PayrollController {
         return ResponseEntity.ok(payrollService.getPayrollForPeriod(periodId));
     }
 
+    @GetMapping("/employee-payslip")
+    public ResponseEntity<PayrollRecord> getEmployeePayslip(
+            @RequestParam Long periodId,
+            @RequestParam Long employeeId) {
+        try {
+            PayrollRecord record = payrollService.getEmployeePayslip(periodId, employeeId);
+            return ResponseEntity.ok(record);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/generate-payslip-pdf")
+    public ResponseEntity<byte[]> generatePayslipPDF(@RequestBody Map<String, Long> request) {
+        try {
+            Long periodId = request.get("periodId");
+            Long employeeId = request.get("employeeId");
+
+            byte[] pdfBytes = payrollService.generatePayslipPDF(periodId, employeeId);
+
+            return ResponseEntity.ok()
+                    .header("Content-Type", "application/pdf")
+                    .header("Content-Disposition", "attachment; filename=payslip.pdf")
+                    .body(pdfBytes);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @PostMapping("/generate")
     public ResponseEntity<?> generatePayroll(@RequestParam Long periodId) {
         try {

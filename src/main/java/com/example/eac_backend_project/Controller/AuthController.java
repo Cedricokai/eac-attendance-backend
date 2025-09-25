@@ -43,9 +43,36 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
-        user.setRole(Role.ROLE_ADMIN);
+        // Default role for public signup
+        user.setRole(Role.ROLE_CUSTOMER);
         User savedUser = userService.registerUser(user);
         return ResponseEntity.ok("User registered successfully. Redirect to login.");
+    }
+
+    // New endpoint for admin to create users
+    @PostMapping("/admin/create-user")
+    public ResponseEntity<?> createUserByAdmin(@RequestBody Map<String, Object> userData) {
+        try {
+            User user = new User();
+            user.setName((String) userData.get("name"));
+            user.setUserName((String) userData.get("userName"));
+            user.setEmail((String) userData.get("email"));
+            user.setPassword((String) userData.get("password"));
+            user.setMobile((String) userData.get("mobile"));
+
+            String roleStr = (String) userData.get("role");
+            Role role = Role.valueOf("ROLE_" + roleStr.toUpperCase());
+
+            User createdUser = userService.createUserByAdmin(user, role);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "User created successfully");
+            response.put("user", createdUser);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PostMapping("/signin")
@@ -111,8 +138,6 @@ public class AuthController {
         userData.put("role", currentUser.getRole().name());
         return ResponseEntity.ok(userData);
     }
-
-
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
