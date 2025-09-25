@@ -43,13 +43,11 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
-        // Default role for public signup
         user.setRole(Role.ROLE_CUSTOMER);
         User savedUser = userService.registerUser(user);
         return ResponseEntity.ok("User registered successfully. Redirect to login.");
     }
 
-    // New endpoint for admin to create users
     @PostMapping("/admin/create-user")
     public ResponseEntity<?> createUserByAdmin(@RequestBody Map<String, Object> userData) {
         try {
@@ -77,31 +75,60 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUserName(),
-                        loginRequest.getPassword()
-                )
-        );
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUserName(),
+                            loginRequest.getPassword()
+                    )
+            );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = jwtProvider.generateToken(authentication);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String token = jwtProvider.generateToken(authentication);
 
-        // Get user role
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String role = userDetails.getAuthorities().stream()
-                .findFirst()
-                .map(GrantedAuthority::getAuthority)
-                .orElse("ROLE_CUSTOMER");
+            // Get user role and details
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String role = userDetails.getAuthorities().stream()
+                    .findFirst()
+                    .map(GrantedAuthority::getAuthority)
+                    .orElse("ROLE_CUSTOMER");
 
-        response.setHeader("Authorization", "Bearer " + token);
+            // Get full user details
+            User currentUser = userService.getCurrentUser();
 
-        Map<String, String> responseBody = new HashMap<>();
-        responseBody.put("message", "Login successful");
-        responseBody.put("token", token);
-        responseBody.put("role", role);
+            response.setHeader("Authorization", "Bearer " + token);
 
-        return ResponseEntity.ok(responseBody);
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("message", "Login successful");
+            responseBody.put("token", token);
+            responseBody.put("role", role);
+            responseBody.put("user", Map.of(
+                    "name", currentUser.getName(),
+                    "username", currentUser.getUserName(),
+                    "email", currentUser.getEmail()
+            ));
+
+            return ResponseEntity.ok(responseBody);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Login failed: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser() {
+        try {
+            User currentUser = userService.getCurrentUser();
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("username", currentUser.getUserName());
+            userData.put("name", currentUser.getName());
+            userData.put("email", currentUser.getEmail());
+            userData.put("role", currentUser.getRole().name());
+            userData.put("mobile", currentUser.getMobile());
+
+            return ResponseEntity.ok(userData);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/users/{userId}/role")
@@ -127,16 +154,6 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
-    }
-
-    @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser() {
-        User currentUser = userService.getCurrentUser();
-        Map<String, String> userData = new HashMap<>();
-        userData.put("username", currentUser.getUserName());
-        userData.put("email", currentUser.getEmail());
-        userData.put("role", currentUser.getRole().name());
-        return ResponseEntity.ok(userData);
     }
 
     @PostMapping("/logout")

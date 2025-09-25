@@ -77,7 +77,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/payroll").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                 .requestMatchers("/api/timesheets/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                 .requestMatchers("/api/leave/supervisor/pending").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPERVISOR")
-                .requestMatchers("/auth").authenticated()
+                .requestMatchers("/auth/me").authenticated()
                 // Allow all users to access the /auth endpoint
 
 

@@ -49,7 +49,6 @@ public class UserService implements UserDetailsService {
         }
     }
 
-
     @Override
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
         // Try to find by email first, then by username
