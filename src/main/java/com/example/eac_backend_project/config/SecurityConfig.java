@@ -60,14 +60,15 @@ public class SecurityConfig {
         // Authorize HTTP requests
         http.authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/auth/signup", "/auth/signin").permitAll()
+                .requestMatchers("/auth/signup").hasAnyAuthority("ROLE_ADMIN")
+                .requestMatchers("/auth/signin").permitAll()
 
                 // Admin-protected endpoints
                 .requestMatchers("/api/products/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
                 .requestMatchers("/api/assets/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
                 .requestMatchers("/api/product-history").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
                 .requestMatchers("/api/outgoing").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
-                .requestMatchers("/api/employee").permitAll()
+                .requestMatchers("/api/employee/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                 .requestMatchers("/api/attendance").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                 .requestMatchers("/api/holiday").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                 .requestMatchers("/api/leave").permitAll()

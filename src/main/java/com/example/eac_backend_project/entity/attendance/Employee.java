@@ -19,6 +19,7 @@ public class Employee {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @Column(unique = true)
     private String employeeId;
 
@@ -35,27 +36,9 @@ public class Employee {
     private Double hourlyRate;
     private Double overtimeRate;
 
-    public String getEmployeeId() {
-        return employeeId;
-    }
-
-    public void setEmployeeId(String employeeId) {
-        this.employeeId = employeeId;
-    }
-
-    // Add getters with null safety
-    public Double getHourlyRate() {
-        return hourlyRate != null ? hourlyRate : 0.0;
-    }
-
-    public Double getOvertimeRate() {
-        return overtimeRate != null ? overtimeRate : getHourlyRate() * 1.5;
-    }
-
     @Column(name = "account_number", unique = true)
     private String accountNumber;
 
-    // New fields as requested
     @Column(name = "ssnit_number", unique = true)
     private String ssnitNumber;
 
@@ -70,45 +53,44 @@ public class Employee {
 
     private Double basicSalary;
 
-    private Double allowances;
+    // ================= Allowance Breakdown (permanent employee setup) =================
+    private Double rentAllowance = 0.0;
+    private Double transportAllowance = 0.0;
+    private Double clothingAllowance = 0.0;
+    private Double otherAllowance = 0.0;
 
-    public Employee() {
+    // ============ Getters with Null Safety ============
+    public Double getHourlyRate() {
+        return hourlyRate != null ? hourlyRate : 0.0;
     }
 
-    public void setHourlyRate(Double hourlyRate) {
-        this.hourlyRate = hourlyRate;
-    }
-
-    public void setOvertimeRate(Double overtimeRate) {
-        this.overtimeRate = overtimeRate;
-    }
-
-    public Double getAllowances() {
-        return allowances;
-    }
-
-    public void setAllowances(Double allowances) {
-        this.allowances = allowances;
-    }
-
-    public Employee(Long id) {
-        this.id = id;
-    }
-
-    public String getAccountNumber() {
-        return accountNumber;
-    }
-
-    public void setAccountNumber(String accountNumber) {
-        this.accountNumber = accountNumber;
+    public Double getOvertimeRate() {
+        return overtimeRate != null ? overtimeRate : getHourlyRate() * 1.5;
     }
 
     public Double getBasicSalary() {
-        return basicSalary;
+        return basicSalary != null ? basicSalary : 0.0;
     }
 
-    public void setBasicSalary(Double basicSalary) {
-        this.basicSalary = basicSalary;
+    public Double getRentAllowance() {
+        return rentAllowance != null ? rentAllowance : 0.0;
+    }
+
+    public Double getTransportAllowance() {
+        return transportAllowance != null ? transportAllowance : 0.0;
+    }
+
+    public Double getClothingAllowance() {
+        return clothingAllowance != null ? clothingAllowance : 0.0;
+    }
+
+    public Double getOtherAllowance() {
+        return otherAllowance != null ? otherAllowance : 0.0;
+    }
+
+    public Double getTotalAllowances() {
+        return getRentAllowance() + getTransportAllowance() +
+                getClothingAllowance() + getOtherAllowance();
     }
 
     public Long getId() {
@@ -117,6 +99,14 @@ public class Employee {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(String employeeId) {
+        this.employeeId = employeeId;
     }
 
     public String getFirstName() {
@@ -183,6 +173,22 @@ public class Employee {
         this.workType = workType;
     }
 
+    public void setHourlyRate(Double hourlyRate) {
+        this.hourlyRate = hourlyRate;
+    }
+
+    public void setOvertimeRate(Double overtimeRate) {
+        this.overtimeRate = overtimeRate;
+    }
+
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    public void setAccountNumber(String accountNumber) {
+        this.accountNumber = accountNumber;
+    }
+
     public String getSsnitNumber() {
         return ssnitNumber;
     }
@@ -213,5 +219,25 @@ public class Employee {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    public void setBasicSalary(Double basicSalary) {
+        this.basicSalary = basicSalary;
+    }
+
+    public void setRentAllowance(Double rentAllowance) {
+        this.rentAllowance = rentAllowance;
+    }
+
+    public void setTransportAllowance(Double transportAllowance) {
+        this.transportAllowance = transportAllowance;
+    }
+
+    public void setClothingAllowance(Double clothingAllowance) {
+        this.clothingAllowance = clothingAllowance;
+    }
+
+    public void setOtherAllowance(Double otherAllowance) {
+        this.otherAllowance = otherAllowance;
     }
 }

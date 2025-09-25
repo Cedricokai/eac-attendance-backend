@@ -65,7 +65,11 @@ public class EmployeeService {
             existingEmployee.setMinimumRate(updatedEmployee.getMinimumRate());
             existingEmployee.setCategory(updatedEmployee.getCategory());
             existingEmployee.setWorkType(updatedEmployee.getWorkType());
-            existingEmployee.setAllowances(updatedEmployee.getAllowances());
+            existingEmployee.setRentAllowance(updatedEmployee.getRentAllowance());
+            existingEmployee.setTransportAllowance(updatedEmployee.getTransportAllowance());
+            existingEmployee.setClothingAllowance(updatedEmployee.getClothingAllowance());
+            existingEmployee.setOtherAllowance(updatedEmployee.getOtherAllowance());
+
 
             // Add the new fields for update
             existingEmployee.setSsnitNumber(updatedEmployee.getSsnitNumber());
