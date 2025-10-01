@@ -1,6 +1,7 @@
 package com.example.eac_backend_project.Service;
 
 import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
+import com.example.eac_backend_project.dto.GeneratePayrollRequest;
 import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.PayrollPeriod;
 import com.example.eac_backend_project.entity.attendance.PayrollRecord;
@@ -47,7 +48,10 @@ public class PayrollService {
      * Generate payroll for the given period.
      */
     @Transactional
-    public void generatePayroll(Long periodId) {
+    public void generatePayroll(GeneratePayrollRequest request) {
+        Long periodId = request.getPeriodId();
+        Map<Long, Map<String, Double>> tempAllowances = request.getTemporaryAllowances();
+
         logger.info("Generating payroll for period ID: {}", periodId);
 
         PayrollPeriod period = payrollPeriodRepository.findById(periodId)
@@ -59,91 +63,62 @@ public class PayrollService {
             throw new IllegalStateException("Cannot generate payroll for already processed period id: " + periodId);
         }
 
-        // Clear existing pending records for the period
+        // Clear existing pending records
         payrollRecordRepository.deleteByPeriodId(periodId);
 
-        // Fetch attendance and overtime summaries
+        // Attendance & overtime
         List<Object[]> attendanceSummaries = attendanceRepository.summarizeAttendanceBetweenDates(
                 period.getStartDate(), period.getEndDate());
 
         List<Object[]> overtimeSummaries = overtimeRepository.summarizeOvertimeBetweenDates(
                 period.getStartDate(), period.getEndDate());
 
-        logger.info("Attendance summaries found: {}", attendanceSummaries == null ? 0 : attendanceSummaries.size());
-        logger.info("Overtime summaries found: {}", overtimeSummaries == null ? 0 : overtimeSummaries.size());
-
-        // Build set of all employee IDs present
+        // Build employee set
         Set<Long> employeeIds = new HashSet<>();
         if (attendanceSummaries != null) {
-            for (Object[] row : attendanceSummaries) {
-                if (row != null && row.length > 0 && row[0] != null) {
-                    employeeIds.add(((Number) row[0]).longValue());
-                }
-            }
+            attendanceSummaries.forEach(r -> {
+                if (r != null && r[0] != null) employeeIds.add(((Number) r[0]).longValue());
+            });
         }
         if (overtimeSummaries != null) {
-            for (Object[] row : overtimeSummaries) {
-                if (row != null && row.length > 0 && row[0] != null) {
-                    employeeIds.add(((Number) row[0]).longValue());
-                }
-            }
+            overtimeSummaries.forEach(r -> {
+                if (r != null && r[0] != null) employeeIds.add(((Number) r[0]).longValue());
+            });
         }
 
         if (employeeIds.isEmpty()) {
-            throw new IllegalStateException("No attendance or overtime records found for the selected period: "
-                    + period.getStartDate() + " to " + period.getEndDate());
+            throw new IllegalStateException("No attendance or overtime records found for the period");
         }
 
-        // Build maps for quick lookups
+        // Build lookup maps
         Map<Long, Object[]> attendanceMap = (attendanceSummaries == null) ? Collections.emptyMap()
                 : attendanceSummaries.stream()
                 .filter(Objects::nonNull)
-                .filter(row -> row.length >= 3 && row[0] != null)
-                .collect(Collectors.toMap(
-                        row -> ((Number) row[0]).longValue(),
-                        row -> row,
-                        (existing, replacement) -> existing
-                ));
+                .filter(r -> r.length >= 3 && r[0] != null)
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> r, (a, b) -> a));
 
         Map<Long, Double> overtimeMap = (overtimeSummaries == null) ? Collections.emptyMap()
                 : overtimeSummaries.stream()
                 .filter(Objects::nonNull)
-                .filter(row -> row.length >= 2 && row[0] != null && row[1] != null)
-                .collect(Collectors.toMap(
-                        row -> ((Number) row[0]).longValue(),
-                        row -> ((Number) row[1]).doubleValue(),
-                        (existing, replacement) -> existing
-                ));
+                .filter(r -> r.length >= 2 && r[0] != null && r[1] != null)
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> ((Number) r[1]).doubleValue(), (a, b) -> a));
 
         int processedCount = 0;
+
         for (Long employeeId : employeeIds) {
             try {
                 int workingDays = 0;
                 double totalHours = 0.0;
-                double overtimeHours = 0.0;
+                double overtimeHours = overtimeMap.getOrDefault(employeeId, 0.0);
 
                 if (attendanceMap.containsKey(employeeId)) {
-                    Object[] aRow = attendanceMap.get(employeeId);
-                    try {
-                        workingDays = aRow[1] == null ? 0 : ((Number) aRow[1]).intValue();
-                    } catch (Exception e) {
-                        logger.warn("Invalid workingDays for employee {} in attendance row: {}", employeeId, Arrays.toString(aRow));
-                    }
-                    try {
-                        totalHours = aRow[2] == null ? 0.0 : ((Number) aRow[2]).doubleValue();
-                    } catch (Exception e) {
-                        logger.warn("Invalid totalHours for employee {} in attendance row: {}", employeeId, Arrays.toString(aRow));
-                    }
+                    Object[] row = attendanceMap.get(employeeId);
+                    workingDays = row[1] != null ? ((Number) row[1]).intValue() : 0;
+                    totalHours = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
                 }
-
-                overtimeHours = overtimeMap.getOrDefault(employeeId, 0.0);
 
                 Employee employee = employeeRepository.findById(employeeId)
                         .orElseThrow(() -> new IllegalArgumentException("Employee not found: " + employeeId));
-
-                if (employee.getMinimumRate() == null || employee.getMinimumRate() <= 0) {
-                    throw new IllegalArgumentException("Invalid minimum rate for employee " + employeeId + ": " + employee.getMinimumRate());
-                }
 
                 PayrollRecord record = new PayrollRecord();
                 record.setEmployee(employee);
@@ -153,40 +128,39 @@ public class PayrollService {
                 record.setTotalHours(totalHours);
                 record.setOvertimeHours(overtimeHours);
 
-                // === Set allowances from Employee (or from any source you store them) ===
-                record.setRentAllowance(employee.getRentAllowance() != null ? employee.getRentAllowance() : 0.0);
-                record.setTransportAllowance(employee.getTransportAllowance() != null ? employee.getTransportAllowance() : 0.0);
-                record.setClothingAllowance(employee.getClothingAllowance() != null ? employee.getClothingAllowance() : 0.0);
-                record.setOtherAllowance(employee.getOtherAllowance() != null ? employee.getOtherAllowance() : 0.0);
+                // Base allowances from employee profile
+                double rentAllowance = employee.getRentAllowance() != null ? employee.getRentAllowance() : 0.0;
+                double transportAllowance = employee.getTransportAllowance() != null ? employee.getTransportAllowance() : 0.0;
+                double clothingAllowance = employee.getClothingAllowance() != null ? employee.getClothingAllowance() : 0.0;
+                double otherAllowance = employee.getOtherAllowance() != null ? employee.getOtherAllowance() : 0.0;
 
-// At this point, totalAllowances, taxableAllowances, and nonTaxableAllowances are automatically recalculated
+                // Merge temporary allowances if present
+                if (tempAllowances != null && tempAllowances.containsKey(employeeId)) {
+                    Map<String, Double> empTemp = tempAllowances.get(employeeId);
+                    rentAllowance = empTemp.getOrDefault("housingAllowance", rentAllowance);
+                    transportAllowance = empTemp.getOrDefault("tntAllowance", transportAllowance);
+                    clothingAllowance = empTemp.getOrDefault("clothsAllowances", clothingAllowance);
+                    otherAllowance = empTemp.getOrDefault("otherAllowances", otherAllowance);
+                }
 
-
-                // Debug before calculation
-                logger.debug("Employee {} -> WorkingDays: {}, TotalHours: {}, OvertimeHours: {}, MinRate: {}",
-                        employeeId, workingDays, totalHours, overtimeHours, employee.getMinimumRate());
+                record.setRentAllowance(rentAllowance);
+                record.setTransportAllowance(transportAllowance);
+                record.setClothingAllowance(clothingAllowance);
+                record.setOtherAllowance(otherAllowance);
 
                 // Calculate payroll
                 ghanaPayrollCalculator.calculatePayroll(employee, totalHours, workingDays, overtimeHours, record);
 
-                // Debug after calculation
-                logger.debug("Employee {} Payroll -> Basic: {}, Gross: {}, SSNIT (5.5%): {}, PAYE: {}, Net: {}",
-                        employeeId,
-                        record.getBasicSalary(),
-                        record.getGrossSalary(),
-                        record.getSsnitEmployee(),
-                        record.getPayeTax(),
-                        record.getNetSalary());
-
                 payrollRecordRepository.save(record);
                 processedCount++;
             } catch (Exception e) {
-                logger.error("Failed to process payroll for employee id {}: {}", employeeId, e.getMessage(), e);
+                logger.error("Failed to process employee {}: {}", employeeId, e.getMessage(), e);
             }
         }
 
-        logger.info("Payroll generation completed. Processed {} employees for period ID: {}", processedCount, periodId);
+        logger.info("Payroll generation done. {} employees processed for period {}", processedCount, periodId);
     }
+
 
     public List<PayrollPeriod> getAllPeriods() {
         return payrollPeriodRepository.findAllByOrderByStartDateDesc();

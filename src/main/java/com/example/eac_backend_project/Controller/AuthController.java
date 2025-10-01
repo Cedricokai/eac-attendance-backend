@@ -115,9 +115,15 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser() {
+    public ResponseEntity<?> getCurrentUser(Authentication authentication) {
         try {
+            if (authentication == null) {
+                return ResponseEntity.status(401).body(Map.of("message", "Not authenticated"));
+            }
+
+            // Get the full user details from your UserService
             User currentUser = userService.getCurrentUser();
+
             Map<String, Object> userData = new HashMap<>();
             userData.put("username", currentUser.getUserName());
             userData.put("name", currentUser.getName());
