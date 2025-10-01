@@ -14,4 +14,5 @@ public interface LeaveRepository extends JpaRepository<Leave, Long> {
     List<Leave> findByPlannerStatus(String status);
     List<Leave> findByHrStatus(String status);
 
+
 }

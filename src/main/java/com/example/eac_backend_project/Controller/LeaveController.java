@@ -7,11 +7,15 @@ import com.example.eac_backend_project.entity.attendance.Leave;
 import com.example.eac_backend_project.repository.EmployeeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @CrossOrigin(origins = "http://localhost:5173")
@@ -102,18 +106,35 @@ public class LeaveController {
     }
 
     @GetMapping("/my-requests")
-    public List<Leave> getMyRequests(@AuthenticationPrincipal org.springframework.security.core.userdetails.User userDetails) {
-        // 1. Get username from Spring Security
-        String username = userDetails.getUsername();
+    public ResponseEntity<List<Leave>> getMyRequests(Authentication authentication) {
+        try {
+            if (authentication == null) {
+                return ResponseEntity.status(401).build();
+            }
 
-        // 2. Find employee by username
-        Employee employee = employeeRepository.findByEmail(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+            String username = authentication.getName();
+            System.out.println("DEBUG: Fetching leaves for username: " + username);
 
-        // 3. Return that employee’s leaves
-        return leaveService.getLeavesByEmployeeId(employee.getId());
+            // Find employee by email (username)
+            Optional<Employee> employeeOpt = employeeRepository.findByEmail(username);
+
+            if (employeeOpt.isEmpty()) {
+                System.out.println("DEBUG: Employee not found for email: " + username);
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+
+            Employee employee = employeeOpt.get();
+            List<Leave> leaves = leaveService.getLeavesByEmployeeId(employee.getId());
+
+            System.out.println("DEBUG: Found " + leaves.size() + " leave requests for employee: " + employee.getId());
+            return ResponseEntity.ok(leaves);
+
+        } catch (Exception e) {
+            System.err.println("ERROR in /my-requests: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
     }
-
 
 
 }

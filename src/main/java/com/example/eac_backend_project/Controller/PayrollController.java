@@ -2,6 +2,7 @@ package com.example.eac_backend_project.Controller;
 
 import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
 import com.example.eac_backend_project.Service.PayrollService;
+import com.example.eac_backend_project.dto.GeneratePayrollRequest;
 import com.example.eac_backend_project.entity.attendance.PayrollPeriod;
 import com.example.eac_backend_project.entity.attendance.PayrollRecord;
 import org.springframework.http.HttpStatus;
@@ -68,9 +69,9 @@ public class PayrollController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<?> generatePayroll(@RequestParam Long periodId) {
+    public ResponseEntity<?> generatePayroll(@RequestBody GeneratePayrollRequest request) {
         try {
-            payrollService.generatePayroll(periodId);
+            payrollService.generatePayroll(request);
             return ResponseEntity.ok(Map.of("message", "Payroll generated successfully"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -90,7 +91,6 @@ public class PayrollController {
                     .body(Map.of("error", "Failed to process payroll: " + e.getMessage()));
         }
     }
-
     @GetMapping("/summary")
     public ResponseEntity<Map<String, Object>> getPayrollSummary() {
         try {
@@ -103,4 +103,6 @@ public class PayrollController {
                     .body(Map.of("error", "Failed to get payroll summary: " + e.getMessage()));
         }
     }
+
+
 }
