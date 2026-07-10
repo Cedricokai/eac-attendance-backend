@@ -4,9 +4,10 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
-@Data
 @Entity
+@Data
 @Table(name = "timesheets")
 public class Timesheet {
 
@@ -14,18 +15,23 @@ public class Timesheet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
-    @ManyToOne(fetch = FetchType.EAGER)  // Eager fetch to ensure employee is loaded
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
 
     @ManyToOne
-    @JoinColumn(name = "overview_id", nullable = false)
+    @JoinColumn(name = "overview_id") // Remove nullable = false to make it optional
     private Overview overview;
 
+    @ManyToOne
+    @JoinColumn(name = "job_id") // Make job optional too if needed
+    private Job job;
 
     @Column(nullable = false)
     private LocalDate date;
+
+    @Column(name = "attendance_code")  // Add this column
+    private String attendanceCode;
 
     @Column(name = "regular_hours")
     private double regularHours;
@@ -36,12 +42,54 @@ public class Timesheet {
     @Column(name = "break_hours")
     private double breakHours;
 
+    @Column(name = "total_hours")
+    private double totalHours;
+
+    @Column(name = "earnings")
+    private Double earnings;
+
     @Enumerated(EnumType.STRING)
     private TimesheetStatus status = TimesheetStatus.PENDING;
 
     @Column(name = "notes")
     private String notes;
 
+    @Column(name = "source_document_missing")
+    private Boolean sourceDocumentMissing = false;
+
+    @Column(name = "source_document_missing_reason", length = 500)
+    private String sourceDocumentMissingReason;
+
+    @Column(name = "source_document_missing_flagged_at")
+    private LocalDateTime sourceDocumentMissingFlaggedAt;
+
+    @Column(name = "source_document_missing_flagged_by")
+    private String sourceDocumentMissingFlaggedBy;
+
+    @Column(name = "source_document_type")
+    private String sourceDocumentType;  // e.g., "HARD_COPY", "EXCEL", "MANUAL", null
+
+    @Column(name = "source_document_reference", length = 200)
+    private String sourceDocumentReference;  // e.g., file name, batch ID, timesheet ID
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
+    @Column(name = "verified_by")
+    private String verifiedBy;
+
+    // Constructors
+    public Timesheet() {}
+
+    public Timesheet(Employee employee, LocalDate date, double regularHours, double overtimeHours) {
+        this.employee = employee;
+        this.date = date;
+        this.regularHours = regularHours;
+        this.overtimeHours = overtimeHours;
+        this.totalHours = regularHours + overtimeHours;
+    }
+
+    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -66,6 +114,14 @@ public class Timesheet {
         this.overview = overview;
     }
 
+    public Job getJob() {
+        return job;
+    }
+
+    public void setJob(Job job) {
+        this.job = job;
+    }
+
     public LocalDate getDate() {
         return date;
     }
@@ -80,6 +136,7 @@ public class Timesheet {
 
     public void setRegularHours(double regularHours) {
         this.regularHours = regularHours;
+        calculateTotalHours();
     }
 
     public double getOvertimeHours() {
@@ -88,6 +145,7 @@ public class Timesheet {
 
     public void setOvertimeHours(double overtimeHours) {
         this.overtimeHours = overtimeHours;
+        calculateTotalHours();
     }
 
     public double getBreakHours() {
@@ -96,6 +154,22 @@ public class Timesheet {
 
     public void setBreakHours(double breakHours) {
         this.breakHours = breakHours;
+    }
+
+    public double getTotalHours() {
+        return totalHours;
+    }
+
+    public void setTotalHours(double totalHours) {
+        this.totalHours = totalHours;
+    }
+
+    public Double getEarnings() {
+        return earnings;
+    }
+
+    public void setEarnings(Double earnings) {
+        this.earnings = earnings;
     }
 
     public TimesheetStatus getStatus() {
@@ -113,8 +187,33 @@ public class Timesheet {
     public void setNotes(String notes) {
         this.notes = notes;
     }
+
+    // Helper method to calculate total hours
+    private void calculateTotalHours() {
+        this.totalHours = this.regularHours + this.overtimeHours;
+    }
+
+    // Convenience method to update hours and recalculate total
+    public void updateHours(double regularHours, double overtimeHours, double breakHours) {
+        this.regularHours = regularHours;
+        this.overtimeHours = overtimeHours;
+        this.breakHours = breakHours;
+        calculateTotalHours();
+    }
+
+    @Override
+    public String toString() {
+        return "Timesheet{" +
+                "id=" + id +
+                ", employee=" + (employee != null ? employee.getId() : "null") +
+                ", date=" + date +
+                ", regularHours=" + regularHours +
+                ", overtimeHours=" + overtimeHours +
+                ", totalHours=" + totalHours +
+                ", earnings=" + earnings +
+                ", status=" + status +
+                '}';
+    }
+
+
 }
-
-
-
-

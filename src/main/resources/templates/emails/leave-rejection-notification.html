@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leave Request Rejected</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fef6f6 0%, #fff5f5 100%);
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Email container */
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: 1px solid #ffeaea;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 150px;
+            height: 150px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            left: -40px;
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+        }
+
+        .status-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 36px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Content */
+        .content {
+            padding: 40px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 25px;
+            color: #2c3e50;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .greeting span {
+            font-weight: 600;
+            color: #c0392b;
+        }
+
+        .main-message {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 30px;
+            line-height: 1.7;
+            text-align: center;
+            padding: 20px;
+            background: #fef2f2;
+            border-radius: 10px;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .reject-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+            color: #c0392b;
+            font-weight: 500;
+        }
+
+        .reject-info::before {
+            content: "👤";
+            font-size: 20px;
+        }
+
+        /* Details card */
+        .details-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 28px;
+            margin: 30px 0;
+            border: 1px solid #fed7d7;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.05);
+        }
+
+        .details-card h3 {
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .details-card h3::before {
+            content: "📄";
+            margin-right: 10px;
+            font-size: 22px;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 18px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .detail-label {
+            flex: 0 0 150px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .detail-value {
+            flex: 1;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .feedback-box {
+            background: white;
+            padding: 18px;
+            border-radius: 8px;
+            border: 1px solid #fed7d7;
+            margin-top: 10px;
+            color: #4a5568;
+            font-style: italic;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .feedback-box::before {
+            content: "💬";
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: white;
+            padding: 0 10px;
+            font-style: normal;
+        }
+
+        /* Next steps */
+        .next-steps {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            border: 1px solid #bae6fd;
+        }
+
+        .next-steps h3 {
+            color: #0c4a6e;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+
+        .next-steps h3::before {
+            content: "🔄";
+            margin-right: 10px;
+        }
+
+        .next-steps ul {
+            padding-left: 20px;
+            color: #4a5568;
+        }
+
+        .next-steps li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        /* Contact section */
+        .contact-section {
+            text-align: center;
+            margin: 30px 0;
+            padding: 25px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .contact-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contact-section h3::before {
+            content: "📞";
+            margin-right: 10px;
+        }
+
+        .contact-email {
+            color: #c0392b;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .contact-email:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 40px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .dashboard-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .dashboard-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(52, 152, 219, 0.3);
+        }
+
+        .footer-note {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .company-name {
+            font-weight: 600;
+            color: #c0392b;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .header, .content, .footer {
+                padding: 25px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .status-icon {
+                width: 60px;
+                height: 60px;
+                font-size: 28px;
+            }
+
+            .detail-row {
+                flex-direction: column;
+            }
+
+            .detail-label {
+                flex: none;
+                margin-bottom: 5px;
+            }
+
+            .dashboard-link {
+                padding: 12px 24px;
+                font-size: 15px;
+                width: 100%;
+                max-width: 280px;
+            }
+
+            .reject-info {
+                flex-direction: column;
+                text-align: center;
+                gap: 5px;
+            }
+        }
+
+        /* Animation for the status icon */
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+
+        .status-icon {
+            animation: shake 1s ease-in-out 0.5s 2;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <div class="status-icon">✖</div>
+        <h1>Leave Request Rejected</h1>
+        <p>Request status update notification</p>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Dear <span th:text="${employeeName}">John Doe</span>,</p>
+
+        <div class="main-message">
+            <p>We regret to inform you that your leave request has been <strong>rejected</strong>.</p>
+
+            <div class="reject-info">
+                <span>Rejected by: <span th:text="${rejecterRole}">Supervisor</span></span>
+                <span>•</span>
+                <span>Action Date: <span th:text="${actionDate}">June 12, 2023</span></span>
+            </div>
+
+            <p>Please review the feedback below for more details.</p>
+        </div>
+
+        <div class="details-card">
+            <h3>Request Details</h3>
+
+            <div class="detail-row">
+                <div class="detail-label">Leave Type:</div>
+                <div class="detail-value" th:text="${leaveType}">Annual Leave</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Rejection Date:</div>
+                <div class="detail-value" th:text="${actionDate}">June 12, 2023</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Rejected By:</div>
+                <div class="detail-value" th:text="${rejecterRole}">Supervisor</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Feedback:</div>
+                <div class="detail-value">
+                    <div class="feedback-box" th:text="${feedback}">Unfortunately, your leave request cannot be approved at this time due to high workload during the requested period. Please consider rescheduling or discussing alternative arrangements with your team lead.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="next-steps">
+            <h3>Suggested Next Steps</h3>
+            <ul>
+                <li>Review the feedback provided above</li>
+                <li>Consider resubmitting your request for different dates</li>
+                <li>Discuss alternative arrangements with your supervisor</li>
+                <li>Contact HR if you have questions about leave policies</li>
+            </ul>
+        </div>
+
+        <div class="contact-section">
+            <h3>Need Assistance?</h3>
+            <p>If you have questions or need clarification about this decision, please contact:</p>
+            <p><a href="mailto:hr@company.com" class="contact-email">hr@company.com</a> or your direct supervisor.</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a th:href="@{${baseUrl}/employeeDashboard}" class="dashboard-link">Go to Dashboard</a>
+            <p style="color: #718096; font-size: 14px; margin-top: 10px;">You can submit a new request or view your leave balance from your dashboard.</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p class="footer-note">This is an automated notification from the <span class="company-name">Company Leave Management System</span>.</p>
+        <p class="footer-note">We understand this may be disappointing and are available to discuss alternatives.</p>
+    </div>
+</div>
+</body>
+</html>

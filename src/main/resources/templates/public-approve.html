@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leave Approval - Processing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 450px;
+            max-width: 90%;
+            overflow: hidden;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.9);
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .status-text {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .status-message {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .auto-close {
+            font-size: 12px;
+            color: #999;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .success {
+            color: #10b981;
+        }
+
+        .error {
+            color: #ef4444;
+        }
+
+        .info {
+            color: #f59e0b;
+        }
+
+        .button {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+
+        .button:hover {
+            background: #5a67d8;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Leave Approval System</h1>
+        <p>Processing your request...</p>
+    </div>
+    <div class="content" id="content">
+        <div class="spinner" id="spinner"></div>
+        <div id="statusText" class="status-text">Processing approval...</div>
+        <div id="statusMessage" class="status-message">Please wait while we process your request</div>
+        <div id="autoClose" class="auto-close"></div>
+    </div>
+</div>
+
+<script>
+    // Get token and leaveId from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const leaveId = urlParams.get('leaveId');
+
+    const API_BASE_URL = 'http://localhost:8080'; // Change to your backend URL
+
+    async function approveLeave() {
+        // Validate parameters
+        if (!token || !leaveId) {
+            showError('Invalid approval link. Missing token or leave ID.');
+            return;
+        }
+
+        try {
+            // Call the public bulk approval endpoint
+            const response = await fetch(`${API_BASE_URL}/api/leave/public/bulk-approve/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    leaveIds: [parseInt(leaveId)],
+                    feedback: 'Approved via email one-click'
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showSuccess(result.message || 'Leave approved successfully!');
+            } else if (result.alreadyApproved) {
+                showSuccess('This leave has already been approved.');
+            } else {
+                showError(result.message || 'Approval failed. Please contact HR.');
+            }
+
+        } catch (error) {
+            console.error('Approval error:', error);
+            showError('Network error. Please check your connection and try again.');
+        }
+    }
+
+    function showSuccess(message) {
+        const content = document.getElementById('content');
+        const spinner = document.getElementById('spinner');
+        const statusText = document.getElementById('statusText');
+        const statusMessage = document.getElementById('statusMessage');
+        const autoClose = document.getElementById('autoClose');
+
+        if (spinner) spinner.style.display = 'none';
+        statusText.innerHTML = '<span class="status-icon">✅</span><br>Success!';
+        statusText.className = 'status-text success';
+        statusMessage.innerHTML = message;
+        autoClose.innerHTML = 'This window will close automatically in 3 seconds...';
+
+        // Auto close after 3 seconds
+        setTimeout(() => {
+            window.close();
+        }, 3000);
+    }
+
+    function showError(message) {
+        const content = document.getElementById('content');
+        const spinner = document.getElementById('spinner');
+        const statusText = document.getElementById('statusText');
+        const statusMessage = document.getElementById('statusMessage');
+        const autoClose = document.getElementById('autoClose');
+
+        if (spinner) spinner.style.display = 'none';
+        statusText.innerHTML = '<span class="status-icon">❌</span><br>Error';
+        statusText.className = 'status-text error';
+        statusMessage.innerHTML = message;
+        autoClose.innerHTML = 'Please contact HR for assistance. You can close this window now.';
+
+        // Add a manual close button
+        const button = document.createElement('a');
+        button.href = '#';
+        button.className = 'button';
+        button.innerHTML = 'Close Window';
+        button.onclick = function(e) {
+            e.preventDefault();
+            window.close();
+        };
+        content.appendChild(button);
+    }
+
+    // Start the approval process
+    approveLeave();
+</script>
+</body>
+</html>

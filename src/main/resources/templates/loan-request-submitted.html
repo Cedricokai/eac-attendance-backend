@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Loan Request Submitted Successfully</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        .header {
+            background-color: #28a745;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .loan-details {
+            background-color: #d4edda;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #28a745;
+        }
+        .info-box {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .footer {
+            background-color: #f1f1f1;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            border-radius: 0 0 10px 10px;
+        }
+        .success-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .status-pending {
+            display: inline-block;
+            padding: 5px 10px;
+            background-color: #ffc107;
+            color: #333;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="success-icon">✅</div>
+        <h2>Loan Request Submitted Successfully!</h2>
+    </div>
+    <div class="content">
+        <p>Dear <span th:text="${employeeName}">Employee</span>,</p>
+
+        <p>Thank you for submitting your loan request. Your request has been <strong>successfully received</strong> and is now pending review by the Finance team.</p>
+
+        <div class="loan-details">
+            <h3>Loan Request Summary:</h3>
+            <p><strong>Request ID:</strong> <span th:text="${loanId}">#</span></p>
+            <p><strong>Requested Amount:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(loanAmount, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Repayment Period:</strong> <span th:text="${repaymentPeriod} + ' months'">0 months</span></p>
+            <p><strong>Monthly Payment:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(monthlyPayment, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Purpose:</strong> <span th:text="${purpose}">-</span></p>
+            <p><strong>Request Date:</strong> <span th:text="${#temporals.format(requestDate, 'MMMM dd, yyyy HH:mm')}">-</span></p>
+            <p><strong>Status:</strong> <span class="status-pending">PENDING REVIEW</span></p>
+        </div>
+
+        <div class="info-box">
+            <h4>📋 What happens next?</h4>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Your request will be reviewed by the Finance team</li>
+                <li>You will receive a notification once a decision is made</li>
+                <li>Review typically takes 2-3 business days</li>
+                <li>You can track your request status in the employee portal</li>
+            </ul>
+        </div>
+
+        <div class="info-box" style="background-color: #fff3cd; border-left-color: #ffc107;">
+            <h4>⏳ Please note:</h4>
+            <p>If approved, the loan amount will be disbursed within 3-5 business days. Monthly deductions will start from your next payroll cycle.</p>
+        </div>
+
+        <p>You will be notified via email once the Finance team makes a decision on your request.</p>
+
+        <br>
+        <p>Thank you for your patience.</p>
+
+        <br>
+        <p>Best regards,</p>
+        <p><strong><span th:text="${companyName}">Company Name</span></strong></p>
+        <p><span th:text="${companyEmail}">company@example.com</span> | <span th:text="${companyPhone}">+1234567890</span></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated confirmation. Please do not reply to this email.</p>
+        <p>If you have any questions, please contact the Finance department.</p>
+        <p>© <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}"></span> <span th:text="${companyName}">Company Name</span>. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

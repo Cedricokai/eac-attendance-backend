@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Billing Due Today</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .content {
+            background: #f8f9fa;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+        }
+        .info-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #dc3545;
+        }
+        .label {
+            font-weight: bold;
+            color: #495057;
+        }
+        .due-badge {
+            background: #dc3545;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .footer {
+            font-size: 12px;
+            color: #6c757d;
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        .action-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2 style="margin: 0;">🔔 Billing Due Today</h2>
+        <p style="margin: 5px 0 0; opacity: 0.9;">Action Required Immediately</p>
+    </div>
+    <div class="content">
+        <div class="due-badge">
+            🔴 DUE TODAY - ACTION REQUIRED
+        </div>
+
+        <p>Dear Valued Customer,</p>
+
+        <p>This is a reminder that billing is <strong>DUE TODAY</strong> for the job below:</p>
+
+        <div class="info-box">
+            <p><span class="label">🏢 Job Name:</span> <strong th:text="${jobName}"></strong></p>
+            <p><span class="label">👥 Client:</span> <span th:text="${client}"></span></p>
+            <p><span class="label">🔄 Billing Cycle:</span> <span th:text="${billingCycle}"></span></p>
+            <p><span class="label">💰 Budget:</span> <span th:text="${budget}"></span></p>
+            <p><span class="label">📆 Due Date:</span> <strong style="color: #dc3545;" th:text="${formattedDueDate}"></strong></p>
+        </div>
+
+        <p><strong>Immediate Action Required Today:</strong></p>
+        <ul>
+            <li>Complete and submit all timesheets TODAY</li>
+            <li>Verify attendance codes and hours</li>
+            <li>Generate and submit invoice</li>
+            <li>Submit for final approval</li>
+        </ul>
+
+        <p><strong>Please complete these actions by end of day today to avoid processing delays.</strong></p>
+
+        <p>Thank you for your prompt attention.</p>
+
+        <p>Best regards,<br><strong th:text="${companyName}"></strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated due date reminder. Please take action today.</p>
+        <p>To update notification preferences, please contact your system administrator.</p>
+    </div>
+</div>
+</body>
+</html>

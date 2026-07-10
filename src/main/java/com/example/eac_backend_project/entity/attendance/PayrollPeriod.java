@@ -1,5 +1,6 @@
 package com.example.eac_backend_project.entity.attendance;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -17,35 +18,12 @@ public class PayrollPeriod {
     private LocalDate startDate;
     private LocalDate endDate;
 
-    public Long getId() {
-        return id;
-    }
+    @Column(name = "convert_excess_to_overtime", nullable = false)
+    private boolean convertExcessToOvertime = true;
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    @Column(name = "category")
+    private String category; // e.g., "Permanent", "Contract", "Casual", etc.
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public LocalDate getStartDate() {
-        return startDate;
-    }
-
-    public void setStartDate(LocalDate startDate) {
-        this.startDate = startDate;
-    }
-
-    public LocalDate getEndDate() {
-        return endDate;
-    }
-
-    public void setEndDate(LocalDate endDate) {
-        this.endDate = endDate;
-    }
+    @Column(name = "status")
+    private String status = "Open"; // Open, Closed, Processing
 }

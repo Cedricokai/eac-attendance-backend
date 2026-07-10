@@ -1,33 +1,30 @@
 package com.example.eac_backend_project.entity.inventory;
 
 import lombok.Data;
-
-import java.util.List;
+import java.util.Map;
 
 @Data
 public class MoveRequest {
-
-
-        private List<Long> productIds;
-        private List<Long> assetsIds;
+        private Map<Long, Integer> productQuantities; // Product ID -> Quantity to move
         private String location;
-        private String userName;
         private String requestedBy;
 
-        public List<Long> getProductIds() {
-                return productIds;
+        // Constructors
+        public MoveRequest() {}
+
+        public MoveRequest(Map<Long, Integer> productQuantities, String location, String requestedBy) {
+                this.productQuantities = productQuantities;
+                this.location = location;
+                this.requestedBy = requestedBy;
         }
 
-        public void setProductIds(List<Long> productIds) {
-                this.productIds = productIds;
+        // Getters and Setters
+        public Map<Long, Integer> getProductQuantities() {
+                return productQuantities;
         }
 
-        public List<Long> getAssetsIds() {
-                return assetsIds;
-        }
-
-        public void setAssetsIds(List<Long> assetsIds) {
-                this.assetsIds = assetsIds;
+        public void setProductQuantities(Map<Long, Integer> productQuantities) {
+                this.productQuantities = productQuantities;
         }
 
         public String getLocation() {
@@ -38,14 +35,6 @@ public class MoveRequest {
                 this.location = location;
         }
 
-        public String getUserName() {
-                return userName;
-        }
-
-        public void setUserName(String userName) {
-                this.userName = userName;
-        }
-
         public String getRequestedBy() {
                 return requestedBy;
         }
@@ -53,7 +42,4 @@ public class MoveRequest {
         public void setRequestedBy(String requestedBy) {
                 this.requestedBy = requestedBy;
         }
-
-        // Getters and Setters
-
 }

@@ -14,6 +14,10 @@ public class BiometricRecordDTO {
     private String employeeName;
     private Long employeeId;
 
+    @JsonFormat(pattern = "yyyy/MM/dd-HH:mm:ss")
+    private LocalDateTime timestamp;
+
+    // Getters and setters (Lombok @Data should generate these)
     public String getAction() {
         return action;
     }
@@ -53,9 +57,6 @@ public class BiometricRecordDTO {
     public void setTimestamp(LocalDateTime timestamp) {
         this.timestamp = timestamp;
     }
-
-    @JsonFormat(pattern = "yyyy/MM/dd-HH:mm:ss")
-    private LocalDateTime timestamp;
 
     // Add validation
     @AssertTrue(message = "Timestamp must be valid")

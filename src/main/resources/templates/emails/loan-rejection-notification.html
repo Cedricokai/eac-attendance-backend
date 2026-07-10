@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Loan Rejected Notification</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; }
+        .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { padding: 20px; }
+        .loan-details { background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .footer { background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 10px 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>❌ Loan Rejected</h2>
+    </div>
+    <div class="content">
+        <p>A loan request has been <strong>REJECTED</strong>.</p>
+
+        <div class="loan-details">
+            <h3>Loan Details:</h3>
+            <p><strong>Loan ID:</strong> <span th:text="${loanId}">#</span></p>
+            <p><strong>Employee:</strong> <span th:text="${employeeName}">Employee Name</span></p>
+            <p><strong>Requested Amount:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(loanAmount, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <th:block th:if="${feedback}">
+                <p><strong>Reason:</strong> <span th:text="${feedback}">-</span></p>
+            </th:block>
+        </div>
+
+        <p>The employee has been notified of this decision.</p>
+
+        <br>
+        <p><span th:text="${companyName}">Company Name</span></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+</div>
+</body>
+</html>

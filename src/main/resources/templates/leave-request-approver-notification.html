@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Leave Request Approval Required</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 20px 0;">
+    <tr>
+        <td align="center">
+            <table width="650" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: Arial, Helvetica, sans-serif;">
+
+                <!-- Header -->
+                <tr>
+                    <td style="background-color: #d9534f; padding: 25px 30px; border-radius: 8px 8px 0 0;">
+                        <h1 style="color: #ffffff; font-size: 24px; margin: 0 0 5px 0;">⚠️ Leave Request Requires Approval</h1>
+                        <p style="color: #ffffff; font-size: 14px; margin: 0;">Action Required: One-click approval available</p>
+                    </td>
+                </tr>
+
+                <!-- Content -->
+                <tr>
+                    <td style="padding: 30px;">
+
+                        <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Dear Approver,</p>
+                        <p style="font-size: 14px; color: #555555; line-height: 1.6; margin: 0 0 25px 0;">
+                            A leave request has been submitted and requires your approval. Click the button below to approve immediately.
+                            <strong>No further action needed - this approves all stages at once.</strong>
+                        </p>
+
+                        <!-- Employee Information -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 25px;">
+                            <tr>
+                                <td style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #5bc0de;">
+                                    <h3 style="color: #333333; font-size: 16px; margin: 0 0 15px 0;">👤 Employee Information</h3>
+                                    <table width="100%" cellpadding="8" cellspacing="0" border="0">
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Employee Name:</td>
+                                            <td style="color: #333333; font-size: 13px; font-weight: bold;" th:text="${employeeName}">John Doe</td>
+                                        </tr>
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Employee ID:</td>
+                                            <td style="color: #333333; font-size: 13px;" th:text="${employeeId}">EMP001</td>
+                                        </tr>
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Department:</td>
+                                            <td style="color: #333333; font-size: 13px;" th:text="${department}">IT Department</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Leave Details -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 25px;">
+                            <tr>
+                                <td style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #5cb85c;">
+                                    <h3 style="color: #333333; font-size: 16px; margin: 0 0 15px 0;">📋 Leave Request Details</h3>
+                                    <table width="100%" cellpadding="8" cellspacing="0" border="0">
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Leave Type:</td>
+                                            <td style="color: #333333; font-size: 13px; font-weight: bold;" th:text="${leaveType}">Annual Leave</td>
+                                        </tr>
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Start Date:</td>
+                                            <td style="color: #333333; font-size: 13px;" th:text="${startDate}">2026-06-15</td>
+                                        </tr>
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">End Date:</td>
+                                            <td style="color: #333333; font-size: 13px;" th:text="${endDate}">2026-06-20</td>
+                                        </tr>
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Total Days:</td>
+                                            <td style="color: #333333; font-size: 13px;" th:text="${totalDays} + ' business days'">5 business days</td>
+                                        </tr>
+                                        <tr>
+                                            <td width="150" style="color: #666666; font-size: 13px;">Reason:</td>
+                                            <td style="color: #333333; font-size: 13px;" th:text="${reason}">Family vacation</td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- ONE-CLICK APPROVE BUTTON - Opens auto-approve page -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 30px 0 20px 0;">
+                            <tr>
+                                <td align="center">
+                                    <!-- Approve Button - Now includes the secure token -->
+                                    <a th:href="@{${baseUrl} + '/public-approve.html?token=' + ${leave.approvalToken} + '&leaveId=' + ${leave.id}}"
+                                       target="_blank"
+                                       onclick="window.open(this.href, 'approve_window', 'width=500,height=350,left=200,top=200'); return false;"
+                                       style="display: inline-block; background-color: #5cb85c; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 4px; font-size: 16px; font-weight: bold; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">✅ ONE-CLICK APPROVE</a>
+
+                                    <p style="font-size: 12px; color: #666; margin-top: 15px;">Click once - window opens, auto-approves, and closes itself</p>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Reject Button -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 10px 0 20px 0;">
+                            <tr>
+                                <td align="center">
+                                    <a th:href="@{${baseUrl} + '/leave/quick-reject/' + ${leaveId}}"
+                                       target="_blank"
+                                       style="display: inline-block; background-color: #d9534f; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 4px; font-size: 14px; text-align: center;">✗ Reject Request</a>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Info Box -->
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 25px 0 0 0;">
+                            <tr>
+                                <td style="background-color: #dff0d8; padding: 15px; border-left: 4px solid #5cb85c;">
+                                    <p style="font-size: 13px; color: #3c763d; margin: 0;">
+                                        <strong>⚡ Instant Approval:</strong> This approves the leave for ALL roles (Supervisor, Planner, and HR) immediately. Leave days will be deducted automatically. No further approval needed.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+
+                    </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+                        <p style="font-size: 12px; color: #999; margin: 0;">
+                            Best regards,<br>
+                            <strong th:text="${companyName}">Company Name</strong> HR Department
+                        </p>
+                    </td>
+                </tr>
+
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

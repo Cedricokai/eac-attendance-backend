@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Approval Request</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Email container */
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e9d5ff;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            padding: 35px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -30px;
+            right: -30px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -50px;
+            left: -30px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+        }
+
+        .hr-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Role badge */
+        .role-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* Content */
+        .content {
+            padding: 40px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 25px;
+            color: #2c3e50;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .hr-name {
+            font-weight: 600;
+            color: #7c3aed;
+        }
+
+        .message {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 30px;
+            line-height: 1.7;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+            border: 1px solid #ddd6fe;
+            text-align: center;
+        }
+
+        .highlight-box p {
+            font-weight: 600;
+            color: #7c3aed;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .highlight-box p::before {
+            content: "👥";
+            margin-right: 10px;
+            font-size: 22px;
+        }
+
+        /* Compliance section */
+        .compliance-section {
+            background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            border: 1px solid #fde68a;
+        }
+
+        .compliance-section h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+
+        .compliance-section h3::before {
+            content: "⚖️";
+            margin-right: 10px;
+        }
+
+        .compliance-section ul {
+            padding-left: 20px;
+            color: #78350f;
+        }
+
+        .compliance-section li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        /* Details card */
+        .details-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 28px;
+            margin: 30px 0;
+            border-left: 5px solid #8b5cf6;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.05);
+        }
+
+        .details-card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .details-card h3::before {
+            content: "📋";
+            margin-right: 10px;
+            font-size: 22px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .detail-item {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .detail-label {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .reason-box {
+            background: white;
+            padding: 18px;
+            border-radius: 8px;
+            border: 1px solid #ddd6fe;
+            margin-top: 20px;
+            color: #374151;
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        /* Leave balance section */
+        .balance-section {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            border: 1px solid #93c5fd;
+        }
+
+        .balance-section h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+
+        .balance-section h3::before {
+            content: "💰";
+            margin-right: 10px;
+        }
+
+        .balance-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .balance-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #bfdbfe;
+        }
+
+        .balance-label {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+
+        .balance-value {
+            font-size: 18px;
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        /* Action buttons */
+        .action-section {
+            text-align: center;
+            margin: 40px 0 30px;
+        }
+
+        .action-title {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            min-width: 160px;
+            text-align: center;
+        }
+
+        .btn-approve {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+        }
+
+        .btn-approve:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-policies {
+            background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(100, 116, 139, 0.2);
+        }
+
+        .btn-policies:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(100, 116, 139, 0.3);
+        }
+
+        /* Policy notice */
+        .policy-notice {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 10px;
+            padding: 18px;
+            margin: 25px 0;
+            border: 1px solid #bae6fd;
+            display: flex;
+            align-items: center;
+        }
+
+        .policy-notice::before {
+            content: "📚";
+            font-size: 24px;
+            margin-right: 15px;
+            color: #0ea5e9;
+        }
+
+        .policy-notice p {
+            color: #0369a1;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 40px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-note {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .company-name {
+            font-weight: 600;
+            color: #7c3aed;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .header, .content, .footer {
+                padding: 25px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .details-grid, .balance-details {
+                grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 280px;
+            }
+
+            .hr-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+                top: 15px;
+                right: 15px;
+            }
+        }
+
+        /* Animation for HR icon */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .hr-icon {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <div class="hr-icon">👥</div>
+        <h1>Leave Request Approval Required</h1>
+        <p>HR Department - Compliance Review</p>
+        <div class="role-badge">HR View</div>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Dear <span class="hr-name" th:text="${hrName}">HR Team</span>,</p>
+
+        <div class="highlight-box">
+            <p><span class="hr-name" th:text="${employeeName}">Employee Name</span> has submitted a new leave request.</p>
+            <p style="font-size: 14px; margin-top: 8px; color: #6d28d9;">HR approval required for policy compliance.</p>
+        </div>
+
+        <div class="compliance-section">
+            <h3>Compliance Checklist</h3>
+            <ul>
+                <li>Verify employee's leave balance</li>
+                <li>Check company leave policies</li>
+                <li>Review special leave requirements</li>
+                <li>Ensure proper documentation</li>
+            </ul>
+        </div>
+
+        <div class="balance-section">
+            <h3>Employee Leave Balance</h3>
+            <div class="balance-details">
+                <div class="balance-item">
+                    <div class="balance-label">Annual Leave</div>
+                    <div class="balance-value">15 days</div>
+                </div>
+                <div class="balance-item">
+                    <div class="balance-label">Sick Leave</div>
+                    <div class="balance-value">10 days</div>
+                </div>
+                <div class="balance-item">
+                    <div class="balance-label">Personal Leave</div>
+                    <div class="balance-value">5 days</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="details-card">
+            <h3>Leave Request Details</h3>
+
+            <div class="details-grid">
+                <div class="detail-item">
+                    <div class="detail-label">Employee Name</div>
+                    <div class="detail-value" th:text="${employeeName}">John Doe</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Employee ID</div>
+                    <div class="detail-value">EMP-2023-045</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Department</div>
+                    <div class="detail-value">Engineering</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Leave Type</div>
+                    <div class="detail-value" th:text="${leaveType}">Annual Leave</div>
+                </div>
+            </div>
+
+            <div class="details-grid" style="margin-top: 20px;">
+                <div class="detail-item">
+                    <div class="detail-label">Start Date</div>
+                    <div class="detail-value" th:text="${startDate}">June 15, 2023</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">End Date</div>
+                    <div class="detail-value" th:text="${endDate}">June 20, 2023</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Duration</div>
+                    <div class="detail-value">5 working days</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Status</div>
+                    <div class="detail-value">Pending HR Approval</div>
+                </div>
+            </div>
+
+            <div class="reason-box" th:text="${reason}">
+                Family vacation and personal time off to recharge. This has been planned in advance to coincide with school holidays.
+            </div>
+        </div>
+
+        <div class="policy-notice">
+            <p>Please reference the company leave policy document before approving.</p>
+        </div>
+
+        <div class="action-section">
+            <p class="action-title">Review and Process Request</p>
+
+            <div class="action-buttons">
+                <a th:href="@{${baseUrl}/leave/approval/{id}(id=${leave.id})}" class="btn btn-approve">Review & Approve</a>
+                <a th:href="@{${baseUrl}/hr/policies}" class="btn btn-policies">View Policies</a>
+            </div>
+
+            <p style="color: #64748b; margin-top: 20px; font-size: 14px;">HR processing deadline: <strong>72 hours</strong> from receipt</p>
+        </div>
+
+        <p class="message">As HR, your approval ensures compliance with company policies and accurate leave balance tracking for payroll purposes.</p>
+    </div>
+
+    <div class="footer">
+        <p class="footer-note">This is an automated notification from the <span class="company-name">Company HR Management System</span>.</p>
+        <p class="footer-note">For HR-specific queries, contact: hr-compliance@company.com</p>
+    </div>
+</div>
+</body>
+</html>

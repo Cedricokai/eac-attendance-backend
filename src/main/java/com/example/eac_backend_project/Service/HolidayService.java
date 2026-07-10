@@ -1,8 +1,8 @@
 package com.example.eac_backend_project.Service;
 
 
-import com.example.eac_backend_project.entity.attendance.Holiday;
-import com.example.eac_backend_project.repository.HolidayRepository;
+import com.example.eac_backend_project.entity.settings.Holiday;
+import com.example.eac_backend_project.repository.settings.HolidayRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

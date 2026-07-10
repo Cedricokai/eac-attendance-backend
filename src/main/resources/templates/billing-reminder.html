@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Billing Reminder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .content {
+            background: #f8f9fa;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+        }
+        .info-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #28a745;
+        }
+        .label {
+            font-weight: bold;
+            color: #495057;
+        }
+        .footer {
+            font-size: 12px;
+            color: #6c757d;
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        .reminder-badge {
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2 style="margin: 0;">📅 Billing Reminder</h2>
+        <p style="margin: 5px 0 0; opacity: 0.9;">Advance Notice</p>
+    </div>
+    <div class="content">
+        <div class="reminder-badge">
+            🔔 Billing Due in <span th:text="${daysToDue}"></span> days
+        </div>
+
+        <p>Dear Valued Customer,</p>
+
+        <p>This is an advance notice that billing will be due for the job below in
+            <strong><span th:text="${daysToDue}"></span> days</strong>:</p>
+
+        <div class="info-box">
+            <p><span class="label">🏢 Job Name:</span> <strong th:text="${jobName}"></strong></p>
+            <p><span class="label">👥 Client:</span> <span th:text="${client}"></span></p>
+            <p><span class="label">🔄 Billing Cycle:</span> <span th:text="${billingCycle}"></span></p>
+            <p><span class="label">💰 Budget:</span> <span th:text="${budget}"></span></p>
+            <p><span class="label">📆 Due Date:</span> <strong th:text="${formattedDueDate}"></strong></p>
+        </div>
+
+        <p><strong>Preparation Steps:</strong></p>
+        <ul>
+            <li>Review employee timesheets for accuracy</li>
+            <li>Verify all attendance records are complete</li>
+            <li>Prepare necessary documentation</li>
+            <li>Ensure budget approvals are in place</li>
+        </ul>
+
+        <p>Please begin preparing for this upcoming billing cycle.</p>
+
+        <p>Best regards,<br><strong th:text="${companyName}"></strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated advance notice. No action required at this time.</p>
+        <p>To update notification preferences, please contact your system administrator.</p>
+    </div>
+</div>
+</body>
+</html>

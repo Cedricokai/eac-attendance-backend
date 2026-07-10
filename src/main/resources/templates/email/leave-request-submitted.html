@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leave Request Submitted</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Email container */
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e1e8f0;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%);
+            color: white;
+            padding: 30px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            left: -40px;
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Content */
+        .content {
+            padding: 40px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 25px;
+            color: #2c3e50;
+        }
+
+        .greeting span {
+            font-weight: 600;
+            color: #4361ee;
+        }
+
+        .message {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 30px;
+            line-height: 1.7;
+        }
+
+        /* Details card */
+        .details-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 28px;
+            margin: 30px 0;
+            border-left: 5px solid #4361ee;
+            box-shadow: 0 4px 12px rgba(67, 97, 238, 0.05);
+        }
+
+        .details-card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .details-card h3::before {
+            content: "📋";
+            margin-right: 10px;
+            font-size: 22px;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .detail-label {
+            flex: 0 0 140px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .detail-value {
+            flex: 1;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .status-badge {
+            display: inline-block;
+            background: #ffeaa7;
+            color: #e17055;
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 40px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .dashboard-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%);
+            color: white;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(67, 97, 238, 0.2);
+        }
+
+        .dashboard-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(67, 97, 238, 0.3);
+        }
+
+        .company-info {
+            margin-top: 25px;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .company-name {
+            font-weight: 600;
+            color: #4361ee;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .header, .content, .footer {
+                padding: 25px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .detail-row {
+                flex-direction: column;
+            }
+
+            .detail-label {
+                flex: none;
+                margin-bottom: 5px;
+            }
+
+            .dashboard-link {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+        }
+
+        /* Animation for the status badge */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .status-badge {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <h1>Leave Request Submitted</h1>
+        <p>Your request has been received and is being processed</p>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Dear <span th:text="${employeeName}">John Doe</span>,</p>
+
+        <p class="message">Your leave request has been successfully submitted and is now pending approval. Below are the details of your request:</p>
+
+        <div class="details-card">
+            <h3>Request Details</h3>
+
+            <div class="detail-row">
+                <div class="detail-label">Leave Type:</div>
+                <div class="detail-value" th:text="${leaveType}">Annual Leave</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Start Date:</div>
+                <div class="detail-value" th:text="${startDate}">June 15, 2023</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">End Date:</div>
+                <div class="detail-value" th:text="${endDate}">June 20, 2023</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Reason:</div>
+                <div class="detail-value" th:text="${reason}">Family vacation</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Status:</div>
+                <div class="detail-value">
+                    <span class="status-badge">Pending Approval</span>
+                </div>
+            </div>
+        </div>
+
+        <p class="message">You will receive a notification once your request has been reviewed. If you need to make any changes, please contact your manager or HR department.</p>
+    </div>
+
+    <div class="footer">
+        <p>Track your request status on your dashboard:</p>
+        <a th:href="@{${baseUrl}/employeeDashboard}" class="dashboard-link">Go to Dashboard</a>
+
+        <div class="company-info">
+            <p>Best regards,<br><span class="company-name">Company HR Department</span></p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
