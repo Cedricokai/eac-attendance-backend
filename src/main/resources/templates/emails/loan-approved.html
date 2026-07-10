@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Loan Approved - Congratulations!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        .header {
+            background-color: #28a745;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .loan-details {
+            background-color: #d4edda;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .footer {
+            background-color: #f1f1f1;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            border-radius: 0 0 10px 10px;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>✅ Loan Approved!</h2>
+    </div>
+    <div class="content">
+        <p>Dear <span th:text="${employeeName}">Employee</span>,</p>
+
+        <p class="success">Congratulations! Your loan request has been <strong>APPROVED</strong>.</p>
+
+        <div class="loan-details">
+            <h3>Approved Loan Details:</h3>
+            <p><strong>Loan ID:</strong> <span th:text="${loanId}">#</span></p>
+            <p><strong>Requested Amount:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(loanAmount, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Approved Amount:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(approvedAmount, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Repayment Period:</strong> <span th:text="${approvedRepaymentPeriod} + ' months'">0 months</span></p>
+            <p><strong>Monthly Payment:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(approvedMonthlyPayment, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Remaining Balance:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(remainingBalance, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <th:block th:if="${feedback}">
+                <p><strong>Approver's Note:</strong> <span th:text="${feedback}">-</span></p>
+            </th:block>
+        </div>
+
+        <p>The loan amount will be disbursed to your account within 3-5 business days. Monthly deductions will start from your next payroll.</p>
+
+        <p>Thank you for being a valued employee.</p>
+
+        <br>
+        <p>Best regards,</p>
+        <p><strong><span th:text="${companyName}">Company Name</span></strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>© <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}"></span> <span th:text="${companyName}">Company Name</span>. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

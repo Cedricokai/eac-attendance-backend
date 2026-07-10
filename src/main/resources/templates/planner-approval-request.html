@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planner Approval Request</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fffaf0 0%, #fff5e6 100%);
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Email container */
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: 1px solid #ffe4cc;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            padding: 35px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -30px;
+            right: -30px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -50px;
+            left: -30px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+        }
+
+        .planner-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Role badge */
+        .role-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* Content */
+        .content {
+            padding: 40px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 25px;
+            color: #2c3e50;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .planner-name {
+            font-weight: 600;
+            color: #ea580c;
+        }
+
+        .message {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 30px;
+            line-height: 1.7;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+            border: 1px solid #fed7aa;
+            text-align: center;
+        }
+
+        .highlight-box p {
+            font-weight: 600;
+            color: #ea580c;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .highlight-box p::before {
+            content: "📊";
+            margin-right: 10px;
+            font-size: 22px;
+        }
+
+        /* Planning impact section */
+        .impact-section {
+            background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            border: 1px solid #fde68a;
+        }
+
+        .impact-section h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+
+        .impact-section h3::before {
+            content: "⚠️";
+            margin-right: 10px;
+        }
+
+        .impact-section ul {
+            padding-left: 20px;
+            color: #78350f;
+        }
+
+        .impact-section li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        /* Details card */
+        .details-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 28px;
+            margin: 30px 0;
+            border-left: 5px solid #f97316;
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.05);
+        }
+
+        .details-card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .details-card h3::before {
+            content: "📋";
+            margin-right: 10px;
+            font-size: 22px;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .detail-label {
+            flex: 0 0 140px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .detail-value {
+            flex: 1;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .reason-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-top: 5px;
+            font-style: italic;
+            color: #4a5568;
+        }
+
+        /* Action buttons */
+        .action-section {
+            text-align: center;
+            margin: 40px 0 30px;
+        }
+
+        .action-title {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            min-width: 160px;
+            text-align: center;
+        }
+
+        .btn-approve {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
+        }
+
+        .btn-approve:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(249, 115, 22, 0.3);
+        }
+
+        .btn-view {
+            background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(100, 116, 139, 0.2);
+        }
+
+        .btn-view:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(100, 116, 139, 0.3);
+        }
+
+        /* Calendar notice */
+        .calendar-notice {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border-radius: 10px;
+            padding: 18px;
+            margin: 25px 0;
+            border: 1px solid #7dd3fc;
+            display: flex;
+            align-items: center;
+        }
+
+        .calendar-notice::before {
+            content: "📅";
+            font-size: 24px;
+            margin-right: 15px;
+            color: #0ea5e9;
+        }
+
+        .calendar-notice p {
+            color: #0369a1;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 40px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-note {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .company-name {
+            font-weight: 600;
+            color: #ea580c;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .header, .content, .footer {
+                padding: 25px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .detail-row {
+                flex-direction: column;
+            }
+
+            .detail-label {
+                flex: none;
+                margin-bottom: 5px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 280px;
+            }
+
+            .planner-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+                top: 15px;
+                right: 15px;
+            }
+        }
+
+        /* Animation for planner icon */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .planner-icon {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <div class="planner-icon">📊</div>
+        <h1>Leave Request Approval Required</h1>
+        <p>Planner - Action Required</p>
+        <div class="role-badge">Planner View</div>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Dear <span class="planner-name" th:text="${plannerName}">Planner</span>,</p>
+
+        <div class="highlight-box">
+            <p><span class="planner-name" th:text="${employeeName}">Employee Name</span> has submitted a new leave request.</p>
+            <p style="font-size: 14px; margin-top: 8px; color: #9a3412;">Your approval is required for resource planning.</p>
+        </div>
+
+        <div class="impact-section">
+            <h3>Planning Impact Considerations</h3>
+            <ul>
+                <li>Check team workload during requested period</li>
+                <li>Review project deadlines and milestones</li>
+                <li>Assess resource availability and coverage</li>
+                <li>Consider peak business periods</li>
+            </ul>
+        </div>
+
+        <div class="calendar-notice">
+            <p>Please check the team calendar for overlapping absences before approving.</p>
+        </div>
+
+        <div class="details-card">
+            <h3>Leave Request Details</h3>
+
+            <div class="detail-row">
+                <div class="detail-label">Employee Name:</div>
+                <div class="detail-value" th:text="${employeeName}">John Doe</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Department:</div>
+                <div class="detail-value">Engineering</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Leave Type:</div>
+                <div class="detail-value" th:text="${leaveType}">Annual Leave</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Start Date:</div>
+                <div class="detail-value" th:text="${startDate}">June 15, 2023</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">End Date:</div>
+                <div class="detail-value" th:text="${endDate}">June 20, 2023</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Duration:</div>
+                <div class="detail-value">5 working days</div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-label">Reason:</div>
+                <div class="detail-value">
+                    <div class="reason-box" th:text="${reason}">Family vacation and personal time off to recharge.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-section">
+            <p class="action-title">Review and Take Action</p>
+
+            <div class="action-buttons">
+                <a th:href="@{${baseUrl}/leave/approval/{id}(id=${leave.id})}" class="btn btn-approve">Review & Approve</a>
+                <a th:href="@{${baseUrl}/plannerDashboard}" class="btn btn-view">Planner Dashboard</a>
+            </div>
+
+            <p style="color: #64748b; margin-top: 20px; font-size: 14px;">Approval deadline: <strong>48 hours</strong> from receipt</p>
+        </div>
+
+        <p class="message">As a planner, your assessment ensures proper resource allocation and minimal disruption to team productivity during this absence.</p>
+    </div>
+
+    <div class="footer">
+        <p class="footer-note">This is an automated notification from the <span class="company-name">Company Leave Management System</span>.</p>
+        <p class="footer-note">For planning-related queries, contact: planning@company.com</p>
+    </div>
+</div>
+</body>
+</html>

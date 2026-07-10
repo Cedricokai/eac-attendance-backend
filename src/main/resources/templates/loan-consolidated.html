@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Loan Consolidation Complete</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        .header {
+            background-color: #6f42c1;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .loan-details {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .footer {
+            background-color: #f1f1f1;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            border-radius: 0 0 10px 10px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>🔄 Loan Consolidation Complete</h2>
+    </div>
+    <div class="content">
+        <p>Dear <span th:text="${employeeName}">Employee</span>,</p>
+
+        <p>Your loans have been consolidated into a single loan for easier management.</p>
+
+        <div class="loan-details">
+            <h3>Consolidated Loan Details:</h3>
+            <p><strong>New Loan ID:</strong> <span th:text="${loanId}">#</span></p>
+            <p><strong>Total Consolidated Amount:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(consolidatedTotal, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Number of Loans Consolidated:</strong> <span th:text="${originalLoanCount}">0</span></p>
+            <p><strong>Repayment Period:</strong> <span th:text="${approvedRepaymentPeriod} + ' months'">0 months</span></p>
+            <p><strong>Monthly Payment:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(approvedMonthlyPayment, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Remaining Balance:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(remainingBalance, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+        </div>
+
+        <p>All previous loans have been marked as consolidated. Moving forward, only this consolidated loan will be active with a single monthly deduction from your salary.</p>
+
+        <p>If you have any questions, please contact the Finance department.</p>
+
+        <br>
+        <p>Best regards,</p>
+        <p><strong><span th:text="${companyName}">Company Name</span></strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>© <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}"></span> <span th:text="${companyName}">Company Name</span>. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

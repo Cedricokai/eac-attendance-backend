@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Assigned to Job</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.5;">
+<h2 th:text="'Hello ' + (${employeeName} ?: 'Employee') + ','">Hello Employee,</h2>
+
+<p>
+    You have been assigned to the following job:
+</p>
+
+<div style="padding:12px;border:1px solid #ddd;border-radius:8px;background:#fafafa;">
+    <p><strong>Job:</strong> <span th:text="${jobName}">Job Name</span></p>
+    <p><strong>Client:</strong> <span th:text="${client}">Client</span></p>
+    <p><strong>Start Date:</strong> <span th:text="${startDate}">2026-01-01</span></p>
+    <p th:if="${endDate != null}"><strong>End Date:</strong> <span th:text="${endDate}">2026-02-01</span></p>
+</div>
+
+<p style="margin-top:16px;">
+    You can view details here:
+    <a th:href="${jobLink}" th:text="${jobLink}">Job Link</a>
+</p>
+
+<hr />
+<p style="color:#666;font-size:12px;">
+    This is an automated notification from <span th:text="${companyName}">Company</span>.
+</p>
+</body>
+</html>

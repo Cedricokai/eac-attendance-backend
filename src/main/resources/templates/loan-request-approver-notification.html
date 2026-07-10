@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Action Required: Loan Request</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        .header {
+            background-color: #dc3545;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .loan-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .footer {
+            background-color: #f1f1f1;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            border-radius: 0 0 10px 10px;
+        }
+        .action-required {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>⚠️ Action Required: Loan Request</h2>
+    </div>
+    <div class="content">
+        <p>Dear Finance Team Member,</p>
+
+        <div class="action-required">
+            <strong>ACTION REQUIRED:</strong> A new loan request requires your review and approval.
+        </div>
+
+        <div class="loan-details">
+            <h3>Loan Request Details:</h3>
+            <p><strong>Request ID:</strong> <span th:text="${loanId}">#</span></p>
+            <p><strong>Employee:</strong> <span th:text="${employeeName}">Employee Name</span></p>
+            <p><strong>Employee ID:</strong> <span th:text="${employeeId}">-</span></p>
+            <p><strong>Department:</strong> <span th:text="${department}">-</span></p>
+            <p><strong>Requested Amount:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(loanAmount, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Repayment Period:</strong> <span th:text="${repaymentPeriod} + ' months'">0 months</span></p>
+            <p><strong>Monthly Payment:</strong> <span th:text="'GHS ' + ${#numbers.formatDecimal(monthlyPayment, 1, 'COMMA', 2, 'POINT')}">GHS 0.00</span></p>
+            <p><strong>Purpose:</strong> <span th:text="${purpose}">-</span></p>
+            <p><strong>Request Date:</strong> <span th:text="${#temporals.format(requestDate, 'MMMM dd, yyyy HH:mm')}">-</span></p>
+        </div>
+
+        <p>Please review this request and take appropriate action:</p>
+
+        <a href="#" class="button" th:href="${baseUrl} + '/loans/' + ${loanId}">View Loan Request</a>
+
+        <p style="margin-top: 20px;">You can approve or reject this request through the admin dashboard.</p>
+
+        <br>
+        <p>Best regards,</p>
+        <p><strong><span th:text="${companyName}">Company Name</span></strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>© <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}"></span> <span th:text="${companyName}">Company Name</span>. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

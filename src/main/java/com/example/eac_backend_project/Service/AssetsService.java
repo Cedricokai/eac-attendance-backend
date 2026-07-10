@@ -87,33 +87,6 @@ public class AssetsService {
         return assetsRepository.findByNameContainingIgnoreCaseOrCodeContainingIgnoreCase(query, query);
     }
 
-     @Transactional
-    public void moveProductsToOutgoing(List<Long> assetsIds, String location) {
-        List<Assets> assetsToMove = assetsRepository.findAllById(assetsIds);
-        logger.info("Products to move: {}", assetsToMove);
-
-        if ( assetsToMove.isEmpty()) {
-            throw new IllegalArgumentException("No products found for the given IDs.");
-        }
-
-        assetsToMove.forEach(assets -> {
-            assets.setStock(assets.getStock() - 1);
-            assetsRepository.save(assets);
-        });
-
-        List<Outgoing> outgoingItems = assetsToMove.stream().map(assets -> {
-            Outgoing outgoing = new Outgoing();
-            outgoing.setName(assets.getName());
-            outgoing.setCode( assets.getCode());
-            outgoing.setDescription( assets.getDescription());
-            outgoing.setMovementDate( assets.getLastUpdatedDate());
-            outgoing.setLocation(location);
-            logger.info("Creating outgoing item: {}", outgoing);
-            return outgoing;
-        }).collect(Collectors.toList());
-
-        outgoingRepository.saveAll(outgoingItems);
-    }
 
      private void logProductHistory(Assets assets, ActionType actionType, String userEmail) {
         ProductHistory history = new ProductHistory();

@@ -30,6 +30,10 @@ public class Attendance {
     private String workType;
     @Column(name = "date")
     private LocalDate date;
+
+    @Column(name = "standard_hours")
+    private Double standardHours;
+
     private String status;
     private String leaveType;
     private double minimumHour;
@@ -41,7 +45,8 @@ public class Attendance {
 
     @Column(name = "checkOut") // Ensure this matches the database column name
     private LocalTime checkOut;
-    private double overtime;
+    private Double overtime;
+
     @Version // Ensures optimistic locking
     private Integer version;
 
@@ -55,6 +60,18 @@ public class Attendance {
     private String action;
 
     private String method;
+
+    public void setOvertime(Double overtime) {
+        this.overtime = overtime;
+    }
+
+    public Double getStandardHours() {
+        return standardHours;
+    }
+
+    public void setStandardHours(Double standardHours) {
+        this.standardHours = standardHours;
+    }
 
     public Long getId() {
         return id;
@@ -144,13 +161,6 @@ public class Attendance {
         this.checkOut = checkOut;
     }
 
-    public double getOvertime() {
-        return overtime;
-    }
-
-    public void setOvertime(double overtime) {
-        this.overtime = overtime;
-    }
 
     public Integer getVersion() {
         return version;

@@ -1,17 +1,20 @@
 package com.example.eac_backend_project.config;
 
+import com.example.eac_backend_project.Service.EndpointPermissionService;
 import com.example.eac_backend_project.Service.UserService;
+import com.example.eac_backend_project.entity.inventory.EndpointPermission;
+import com.example.eac_backend_project.entity.inventory.Role;
+import com.example.eac_backend_project.entity.inventory.User;
 import com.example.eac_backend_project.filter.JwtAuthenticationFilter;
-import lombok.Data;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -21,90 +24,137 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-@EnableWebSecurity
 @Configuration
-@Data
 public class SecurityConfig {
 
     private final UserService userService;
     private final CustomAccessDeniedHandler accessDeniedHandler;
-    private final JwtProvider jwtProvider;  // Add this line to inject JwtProvider
+    private final JwtProvider jwtProvider;
+    private final EndpointPermissionService endpointPermissionService;
 
-    @Value("${cors.allowedOrigins}")
-    private List<String> allowedOrigins;
-
-    @Value("${jwt.secret}")
-    private String secretKey;
-
-    // Constructor injection with @Lazy for UserService
-    public SecurityConfig(@Lazy UserService userService, CustomAccessDeniedHandler accessDeniedHandler, JwtProvider jwtProvider) {
+    @Autowired
+    public SecurityConfig(@Lazy UserService userService,
+                          CustomAccessDeniedHandler accessDeniedHandler,
+                          JwtProvider jwtProvider,
+                          EndpointPermissionService endpointPermissionService) {
         this.userService = userService;
         this.accessDeniedHandler = accessDeniedHandler;
-        this.jwtProvider = jwtProvider;  // Initialize jwtProvider in the constructor
+        this.jwtProvider = jwtProvider;
+        this.endpointPermissionService = endpointPermissionService;
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://192.168.*.*",
+                "https://eac-system.eaconcept.org",
+                "https://eaconcept.org",
+                "http://100.114.178.13",
+                "https://*.tail*.ts.net",
+                "https://cedricokai.github.io"
+        ));
+        config.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("Authorization", "Content-Disposition")); // Add Content-Disposition for file downloads
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // Disable CSRF (consider enabling it in production)
-        http.csrf(csrf -> csrf.disable());
+        http.csrf(csrf -> csrf.disable()).cors();
+        http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
-        // Configure CORS with custom CorsConfigurationSource bean
-        http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
+        http.authorizeHttpRequests(auth -> {
+            auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    // Public auth endpoints:
+                    .requestMatchers(HttpMethod.POST,
+                            "/ONEPASS/UPLOAD_RECORD_NOW",
+                            "/ONEPASS/retry-attempt"
+                    ).permitAll()
+                    .requestMatchers(HttpMethod.GET,
+                            "/ONEPASS/recent-attempts"
+                    ).permitAll()
+                    .requestMatchers(HttpMethod.POST,
+                            "/auth/signin",
+                            "/auth/signup",
+                            "/auth/forgot-password",
+                            "/auth/reset-password",
+                            "/api/leave/public-approve",
+                            "/api/leave/public-approve/**",
+                            "/api/leave/quick-approve/**",
+                            "/api/leave/quick-reject/**"
+                    ).permitAll()
 
-        // Add the JwtAuthenticationFilter
-        http.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, userService), UsernamePasswordAuthenticationFilter.class);
+                    // ========== ADD REPORTS ENDPOINTS HERE ==========
+                    // Allow authenticated access to reports (they need JWT token)
+                    .requestMatchers(HttpMethod.GET, "/api/reports/**").authenticated()
 
-        // Authorize HTTP requests
-        http.authorizeHttpRequests(auth -> auth
-                // Public endpoints
-                .requestMatchers("/auth/signup").hasAnyAuthority("ROLE_ADMIN")
-                .requestMatchers("/auth/signin").permitAll()
+                    // Everything else under /auth requires auth:
+                    .requestMatchers("/api/excel-comparator/rule-sets/**").authenticated()
+                    .requestMatchers("/auth/**").authenticated()
+                    .requestMatchers(HttpMethod.GET, "/api/activity-logs/**").authenticated()
+                    .requestMatchers("/api/pages/check-access").authenticated()
+                    .requestMatchers("/api/leave/admin/employee-balances").authenticated()
+                    .requestMatchers("/api/loans/**").authenticated()
+                    .requestMatchers("/api/settings/email/**").authenticated()
+                    .requestMatchers(HttpMethod.GET, "/api/payroll/reports/**").authenticated()
+                    .requestMatchers("/api/payroll/**").authenticated();
 
-                // Admin-protected endpoints
-                .requestMatchers("/api/products/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
-                .requestMatchers("/api/assets/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
-                .requestMatchers("/api/product-history").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
-                .requestMatchers("/api/outgoing").hasAnyAuthority("ROLE_ADMIN", "ROLE_INVENTORY")
-                .requestMatchers("/api/employee/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR","ROLE_CUSTOMER")
-                .requestMatchers("/api/attendance").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
-                .requestMatchers("/api/holiday").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
-                .requestMatchers("/api/leave/**").permitAll()
-                .requestMatchers("/api/overtime").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
-                .requestMatchers("/api/overview").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
-                .requestMatchers("/api/payroll").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
-                .requestMatchers("/api/timesheets/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
-                .requestMatchers("/api/leave/supervisor/pending").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPERVISOR")
-                .requestMatchers("/auth/me").authenticated()
-                // Allow all users to access the /auth endpoint
+            loadDynamicPermissions(auth);
+            auth.anyRequest().authenticated();
+        });
 
-
-                // Protected endpoints (require authentication)
-                .requestMatchers("/api/user/**").hasAnyAuthority("ADMIN") // Example of authenticated-only endpoint
-                .anyRequest().authenticated() // All other requests require authentication
-        );
-
-        // Exception handling
         http.exceptionHandling(e -> e
                 .accessDeniedHandler(accessDeniedHandler)
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
         );
 
-        // Disable form login and customize logout handling
-        http.formLogin(form -> form.disable());
-        http.logout(logout ->
-                logout
-                        .logoutUrl("/auth/logout")
-                        .logoutSuccessHandler((request, response, authentication) -> response.setStatus(HttpStatus.OK.value()))
-                        .deleteCookies("JSESSIONID") // Optional: if using cookies for session tracking
-                        .permitAll()
-        );
+        http.formLogin().disable();
+        http.logout().disable();
 
         return http.build();
     }
 
+    private void loadDynamicPermissions(
+            org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+        try {
+            List<EndpointPermission> permissions = endpointPermissionService.getAllActivePermissions();
+
+            for (EndpointPermission permission : permissions) {
+                if (permission.getRoles().isEmpty() && permission.getUsers().isEmpty()) continue;
+
+                List<String> authorities = new ArrayList<>();
+                for (Role role : permission.getRoles()) authorities.add(role.getName());
+                for (User user : permission.getUsers()) authorities.add("USER_" + user.getId() + "_" + permission.getId());
+
+                if (!authorities.isEmpty()) {
+                    auth.requestMatchers(
+                            HttpMethod.valueOf(permission.getHttpMethod()),
+                            permission.getEndpointPattern()
+                    ).hasAnyAuthority(authorities.toArray(new String[0]));
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading dynamic permissions: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter(jwtProvider, userService);
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -115,26 +165,8 @@ public class SecurityConfig {
     public AuthenticationManager authManager(HttpSecurity http) throws Exception {
         AuthenticationManagerBuilder authenticationManagerBuilder =
                 http.getSharedObject(AuthenticationManagerBuilder.class);
-        authenticationManagerBuilder
-                .userDetailsService(userService) // Use UserService directly as UserDetailsService
-                .passwordEncoder(passwordEncoder()); // Set password encoder
+        authenticationManagerBuilder.userDetailsService(userService)
+                .passwordEncoder(passwordEncoder());
         return authenticationManagerBuilder.build();
-    }
-
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:5173",
-                "http://localhost:3000"
-        ));
-        configuration.setAllowCredentials(true);
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
     }
 }

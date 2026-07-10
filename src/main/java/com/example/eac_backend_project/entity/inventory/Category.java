@@ -1,4 +1,4 @@
-package com.example.eac_backend_project.config;
+package com.example.eac_backend_project.entity.inventory;
 
 
 public enum Category {

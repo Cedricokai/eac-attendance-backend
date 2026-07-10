@@ -1,13 +1,11 @@
 package com.example.eac_backend_project.Service;
 
-
-import com.example.eac_backend_project.entity.inventory.ActionType;
-import com.example.eac_backend_project.entity.inventory.Outgoing;
-import com.example.eac_backend_project.entity.inventory.Product;
-import com.example.eac_backend_project.entity.inventory.ProductHistory;
+import com.example.eac_backend_project.dto.StockAdjustmentRequest;
+import com.example.eac_backend_project.entity.inventory.*;
 import com.example.eac_backend_project.repository.OutgoingRepository;
 import com.example.eac_backend_project.repository.ProductHistoryRepository;
 import com.example.eac_backend_project.repository.ProductRepository;
+import com.example.eac_backend_project.repository.StockHistoryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -16,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -24,12 +21,14 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final OutgoingRepository outgoingRepository;
     private final ProductHistoryRepository productHistoryRepository;
+    private final StockHistoryRepository stockHistoryRepository;
     private final Logger logger = LoggerFactory.getLogger(ProductService.class);
 
-    public ProductService(ProductRepository productRepository, OutgoingRepository outgoingRepository, ProductHistoryRepository productHistoryRepository) {
+    public ProductService(ProductRepository productRepository, OutgoingRepository outgoingRepository, ProductHistoryRepository productHistoryRepository, StockHistoryRepository stockHistoryRepository) {
         this.productRepository = productRepository;
         this.outgoingRepository = outgoingRepository;
         this.productHistoryRepository = productHistoryRepository;
+        this.stockHistoryRepository = stockHistoryRepository;
     }
 
     public List<Product> getAllProducts() {
@@ -37,15 +36,9 @@ public class ProductService {
     }
 
     public Product addProduct(Product product, String userEmail) {
-        // Save the product
         Product savedProduct = productRepository.save(product);
-
-        // Log the action in product history
         logProductHistory(savedProduct, ActionType.ADD, userEmail);
-
-        // Log the action in the system log
         logger.info("Product added: {}", savedProduct.getName());
-
         return savedProduct;
     }
 
@@ -54,20 +47,21 @@ public class ProductService {
         if (existingProductOptional.isPresent()) {
             Product existingProduct = existingProductOptional.get();
 
-            // Update fields
             existingProduct.setName(updatedProduct.getName());
             existingProduct.setCode(updatedProduct.getCode());
             existingProduct.setDescription(updatedProduct.getDescription());
-            existingProduct.setStock(updatedProduct.getStock());
+            existingProduct.setStock(updatedProduct.getStock()); // Frontend sends updated stock
             existingProduct.setUserName(updatedProduct.getUserName());
+            existingProduct.setUnitCost(updatedProduct.getUnitCost());
             existingProduct.setProductType(updatedProduct.getProductType());
+            existingProduct.setEntryDate(updatedProduct.getEntryDate());
+            existingProduct.setPpe(updatedProduct.getPpe());
+          existingProduct.setKitchenStore(updatedProduct.getKitchenStore());
+          existingProduct.setReturnableAfterUse(updatedProduct.getReturnableAfterUse());
+          existingProduct.setShelfNumber(updatedProduct.getShelfNumber());
 
-            // Save the updated product
             Product savedProduct = productRepository.save(existingProduct);
-
-            // Log the action in product history
             logProductHistory(savedProduct, ActionType.EDIT, userEmail);
-
             return savedProduct;
         } else {
             throw new RuntimeException("Product with ID " + id + " not found.");
@@ -82,11 +76,7 @@ public class ProductService {
         Optional<Product> productOptional = productRepository.findById(id);
         if (productOptional.isPresent()) {
             Product product = productOptional.get();
-
-            // Log the action before deleting
             logProductHistory(product, ActionType.DELETE, userEmail);
-
-            // Delete the product
             productRepository.deleteById(id);
         } else {
             throw new RuntimeException("Product with ID " + id + " not found.");
@@ -97,34 +87,22 @@ public class ProductService {
         return productRepository.findByNameContainingIgnoreCaseOrCodeContainingIgnoreCase(query, query);
     }
 
+    // ✅ REMOVED: moveProductsToOutgoing method with stock deduction
+    // Frontend will handle stock deduction and send updated products
+
     @Transactional
-    public void moveProductsToOutgoing(List<Long> productIds, String location, String requestedBy) {
-        List<Product> productsToMove = productRepository.findAllById(productIds);
-        logger.info("Products to move: {}", productsToMove);
-
-        if (productsToMove.isEmpty()) {
-            throw new IllegalArgumentException("No products found for the given IDs.");
+    public void saveOutgoingRecords(List<Outgoing> outgoingItems) {
+        // Just save outgoing records, no stock deduction
+        for (Outgoing outgoing : outgoingItems) {
+            if (outgoing.getProductId() == null) {
+                throw new IllegalArgumentException("Product ID must not be null for outgoing item: " + outgoing.getName());
+            }
+            if (outgoing.getMovementDate() == null) {
+                outgoing.setMovementDate(LocalDateTime.now());
+            }
         }
-
-        productsToMove.forEach(product -> {
-            product.setStock(product.getStock() - 1);
-            productRepository.save(product);
-        });
-
-        List<Outgoing> outgoingItems = productsToMove.stream().map(product -> {
-            Outgoing outgoing = new Outgoing();
-            outgoing.setName(product.getName());
-            outgoing.setCode(product.getCode());
-            outgoing.setDescription(product.getDescription());
-            outgoing.setMovementDate(product.getLastUpdatedDate());
-            outgoing.setLocation(location);
-            outgoing.setRequestedBy(requestedBy);
-            outgoing.setUserName(product.getUserName());
-            logger.info("Creating outgoing item: {}", outgoing);
-            return outgoing;
-        }).collect(Collectors.toList());
-
         outgoingRepository.saveAll(outgoingItems);
+        logger.info("Saved {} outgoing records", outgoingItems.size());
     }
 
     private void logProductHistory(Product product, ActionType actionType, String userEmail) {
@@ -134,8 +112,6 @@ public class ProductService {
         history.setActionDate(LocalDateTime.now());
         history.setUserEmail(userEmail);
         history.setDescription("The Action '" + actionType.name() + "' was performed on the product '" + product.getName() + "'");
-
-        // Save the history record
         productHistoryRepository.save(history);
     }
 
@@ -147,10 +123,7 @@ public class ProductService {
             int oldStock = product.getStock();
             product.setStock(newStock);
             productRepository.save(product);
-
-            // Log product history
             logProductHistory(product, ActionType.EDIT, userEmail);
-
             logger.info("Stock updated for product {} from {} to {}", product.getName(), oldStock, newStock);
             return product;
         } else {
@@ -167,6 +140,74 @@ public class ProductService {
         return products.stream()
                 .mapToInt(Product::getStock)
                 .sum();
+    }
+
+    @Transactional
+    public Product adjustProductStock(StockAdjustmentRequest request) {
+        Optional<Product> productOptional = productRepository.findById(request.getProductId());
+        if (productOptional.isPresent()) {
+            Product product = productOptional.get();
+
+            // Verify old stock matches current stock
+            int currentStock = product.getStock();
+            if (!request.getOldStock().equals(currentStock)) {
+                throw new RuntimeException("Stock has changed since you started this adjustment. Current stock: " + currentStock +
+                        ", Your old stock: " + request.getOldStock());
+            }
+
+            // Update product stock
+            product.setStock(request.getNewStock());
+            Product savedProduct = productRepository.save(product);
+
+            // Log detailed stock history
+            logStockHistory(request, product.getName());
+
+            // Log general product history
+            logProductHistory(product, ActionType.EDIT, request.getUserEmail(),
+                    "Stock adjusted from " + request.getOldStock() + " to " + request.getNewStock());
+
+            logger.info("Stock adjusted for product {}: {} -> {} ({} {} units)",
+                    product.getName(), request.getOldStock(), request.getNewStock(),
+                    request.getQuantity(), request.getAdjustmentType().toLowerCase());
+
+            return savedProduct;
+        } else {
+            throw new RuntimeException("Product with ID " + request.getProductId() + " not found.");
+        }
+    }
+
+    private void logStockHistory(StockAdjustmentRequest request, String productName) {
+        StockHistory stockHistory = new StockHistory();
+        stockHistory.setProductId(request.getProductId());
+        stockHistory.setProductName(productName);
+        stockHistory.setOldStock(request.getOldStock());
+        stockHistory.setNewStock(request.getNewStock());
+        stockHistory.setQuantityChanged(request.getQuantity());
+        stockHistory.setAdjustmentType(request.getAdjustmentType());
+        stockHistory.setReason(request.getReason());
+        stockHistory.setNotes(request.getNotes());
+        stockHistory.setUserEmail(request.getUserEmail());
+        stockHistory.setAdjustmentDate(LocalDateTime.now());
+
+        stockHistoryRepository.save(stockHistory);
+    }
+
+    private void logProductHistory(Product product, ActionType actionType, String userEmail, String description) {
+        ProductHistory history = new ProductHistory();
+        history.setProductId(product.getId());
+        history.setActionType(actionType);
+        history.setActionDate(LocalDateTime.now());
+        history.setUserEmail(userEmail);
+        history.setDescription(description);
+        productHistoryRepository.save(history);
+    }
+
+    public List<StockHistory> getStockHistoryByProductId(Long productId) {
+        return stockHistoryRepository.findByProductIdOrderByAdjustmentDateDesc(productId);
+    }
+
+    public List<StockHistory> getAllStockHistory() {
+        return stockHistoryRepository.findAll();
     }
 
 }

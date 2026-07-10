@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Billing Reminder Enlistment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .content {
+            background: #f8f9fa;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+        }
+        .info-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #667eea;
+        }
+        .label {
+            font-weight: bold;
+            color: #495057;
+        }
+        .footer {
+            font-size: 12px;
+            color: #6c757d;
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        .success-badge {
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2 style="margin: 0;">✅ Billing Reminder Enlistment</h2>
+        <p style="margin: 5px 0 0; opacity: 0.9;">You've been added to the notification list</p>
+    </div>
+    <div class="content">
+        <div class="success-badge">
+            📧 You have been enlisted
+        </div>
+
+        <p>Hello,</p>
+
+        <p>You have been enlisted to receive billing reminders for the job below:</p>
+
+        <div class="info-box">
+            <p><span class="label">🏢 Job Name:</span> <strong th:text="${jobName}"></strong></p>
+            <p><span class="label">👥 Client:</span> <span th:text="${client}"></span></p>
+            <p><span class="label">🔄 Billing Cycle:</span> <span th:text="${billingCycle}"></span></p>
+            <p><span class="label">💰 Budget:</span> <span th:text="${budget}"></span></p>
+            <p><span class="label">📆 Next Due Date:</span> <span th:text="${formattedDueDate}"></span></p>
+        </div>
+
+        <p><strong>What to expect:</strong></p>
+        <ul>
+            <li>Advance notices when billing is approaching</li>
+            <li>Reminders on the due date</li>
+            <li>Overdue alerts if billing is past due</li>
+        </ul>
+
+        <p>If you believe you received this in error, please contact your system administrator.</p>
+
+        <p>Best regards,<br><strong th:text="${companyName}"></strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated confirmation email.</p>
+        <p>To unsubscribe or update preferences, please contact your administrator.</p>
+    </div>
+</div>
+</body>
+</html>
