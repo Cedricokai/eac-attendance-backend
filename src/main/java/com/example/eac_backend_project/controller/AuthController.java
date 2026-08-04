@@ -6,13 +6,15 @@ import com.example.eac_backend_project.config.JwtProvider;
 import com.example.eac_backend_project.dto.ForgotPasswordRequestDTO;
 import com.example.eac_backend_project.dto.LoginRequest;
 import com.example.eac_backend_project.dto.UserDTO;
+import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.inventory.Role;
 import com.example.eac_backend_project.entity.inventory.User;
+import com.example.eac_backend_project.repository.EmployeeRepository;
 import com.example.eac_backend_project.repository.RoleRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -25,8 +27,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.web.bind.annotation.*;
 
-
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +42,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtProvider jwtProvider;
     private final RoleRepository roleRepository;
+    private final EmployeeRepository employeeRepository;
 
     @Autowired
     private EmailService emailService;
@@ -48,12 +51,14 @@ public class AuthController {
             UserService userService,
             AuthenticationManager authenticationManager,
             JwtProvider jwtProvider,
-            RoleRepository roleRepository
+            RoleRepository roleRepository,
+            EmployeeRepository employeeRepository
     ) {
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.jwtProvider = jwtProvider;
         this.roleRepository = roleRepository;
+        this.employeeRepository = employeeRepository;
     }
 
     @GetMapping("/signin")
@@ -75,7 +80,6 @@ public class AuthController {
         return ResponseEntity.ok(userService.getAllUserDTOs());
     }
 
-
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
         try {
@@ -95,7 +99,6 @@ public class AuthController {
     @PostMapping("/admin/create-user")
     public ResponseEntity<?> createUserByAdmin(@RequestBody Map<String, Object> userData) {
         try {
-            // Validate required fields
             if (userData.get("name") == null || ((String) userData.get("name")).trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Name is required"));
             }
@@ -122,7 +125,6 @@ public class AuthController {
 
             String roleName = ((String) userData.get("role")).trim();
 
-            // Find role (with or without ROLE_ prefix)
             Role role = roleRepository.findByName(roleName)
                     .or(() -> roleRepository.findByName("ROLE_" + roleName))
                     .orElseThrow(() -> new RuntimeException("Role '" + roleName + "' not found. Available roles: " +
@@ -170,7 +172,6 @@ public class AuthController {
 
             User currentUser = userService.getCurrentUser();
 
-
             response.setHeader("Authorization", "Bearer " + token);
 
             return ResponseEntity.ok(Map.of(
@@ -203,18 +204,33 @@ public class AuthController {
 
         try {
             User currentUser = userService.getCurrentUser();
+            Employee employee = employeeRepository.findByEmail(currentUser.getEmail()).orElse(null);
 
-            return ResponseEntity.ok(Map.of(
-                    "username", currentUser.getUserName(),
-                    "name", currentUser.getName(),
-                    "email", currentUser.getEmail(),
-                    "role", currentUser.getRole().getName(),
-                    "authorities", authentication.getAuthorities().stream()
-                            .map(GrantedAuthority::getAuthority)
-                            .collect(Collectors.toList()),
-                    "mobile", currentUser.getMobile(),
-                    "enabled", currentUser.getEnabled()
-            ));
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("username", currentUser.getUserName());
+            response.put("name", currentUser.getName());
+            response.put("email", currentUser.getEmail());
+            response.put("role", currentUser.getRole().getName());
+            response.put("authorities", authentication.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toList()));
+            response.put("mobile", currentUser.getMobile());
+            response.put("enabled", currentUser.getEnabled());
+
+            if (employee != null) {
+                Map<String, Object> empMap = new LinkedHashMap<>();
+                empMap.put("id", employee.getId());
+                empMap.put("firstName", employee.getFirstName());
+                empMap.put("lastName", employee.getLastName());
+                empMap.put("employeeId", employee.getEmployeeId());
+                empMap.put("department", employee.getDepartment());
+                empMap.put("position", employee.getJobPosition());
+                response.put("employee", empMap);
+            } else {
+                response.put("employee", null);
+            }
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("message", "Failed to get current user: " + e.getMessage()));
         }
@@ -228,7 +244,6 @@ public class AuthController {
         try {
             String roleName = requestBody.get("role");
 
-            // Find role (with or without ROLE_ prefix)
             Role role = roleRepository.findByName(roleName)
                     .or(() -> roleRepository.findByName("ROLE_" + roleName))
                     .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
@@ -276,20 +291,17 @@ public class AuthController {
                         .body(Map.of("message", "Role name is required"));
             }
 
-            // Ensure role name has ROLE_ prefix
             String formattedRoleName = roleName.trim().toUpperCase();
             if (!formattedRoleName.startsWith("ROLE_")) {
                 formattedRoleName = "ROLE_" + formattedRoleName;
             }
 
-            // Check if role already exists
             Optional<Role> existingRole = roleRepository.findByName(formattedRoleName);
             if (existingRole.isPresent()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("message", "Role already exists"));
             }
 
-            // Create new role
             Role role = new Role();
             role.setName(formattedRoleName);
 
@@ -315,8 +327,6 @@ public class AuthController {
 
             Role role = roleOptional.get();
 
-            // Check if it's a system role (you might want to add a 'system' boolean field to Role entity)
-            // For now, let's protect some common system roles
             List<String> protectedRoles = Arrays.asList(
                     "ROLE_ADMIN", "ROLE_CUSTOMER", "ROLE_HR", "ROLE_INVENTORY",
                     "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_PROCUREMENT_OFFICER",
@@ -328,7 +338,6 @@ public class AuthController {
                         .body(Map.of("message", "Cannot delete system role"));
             }
 
-            // Check if any user has this role
             long usersWithRole = userService.countUsersByRole(role);
             if (usersWithRole > 0) {
                 return ResponseEntity.badRequest()
@@ -430,12 +439,6 @@ public class AuthController {
                     String link = userService.buildResetPasswordLink(request, u.getPasswordResetToken());
 
                     emailService.sendPasswordResetEmail(u.getEmail(), link, u.getName());
-
-                    emailService.sendPasswordResetEmail(
-                            u.getEmail(),
-                            link,
-                            u.getName()
-                    );
                 }
             }
 
@@ -448,7 +451,6 @@ public class AuthController {
             ));
         }
     }
-
 
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody com.example.eac_backend_project.dto.ResetPasswordDTO dto) {
@@ -466,7 +468,4 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
-
-
-
 }

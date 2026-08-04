@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,6 +48,10 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     List<Attendance> findByBiometricTrue();
 
     List<Attendance> findByDateBetween(LocalDate startDate, LocalDate endDate);
+
+    // ========== ADDED METHOD FOR LUNCH MODULE ==========
+    @Query("SELECT a FROM Attendance a WHERE a.date = :date AND a.checkIn IS NOT NULL")
+    List<Attendance> findByDateAndCheckInIsNotNull(@Param("date") LocalDate date);
 
     // FIXED: Use IN clause for multiple status values
     @Query("SELECT a.employee.id, " +

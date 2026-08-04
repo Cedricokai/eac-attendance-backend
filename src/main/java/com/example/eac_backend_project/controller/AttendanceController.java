@@ -30,7 +30,10 @@ public class AttendanceController {
     private final AttendanceRepository attendanceRepository;
     private final TimesheetService timesheetService;
 
-    public AttendanceController(AttendanceService attendanceService, BiometricExcelParser biometricExcelParser, AttendanceRepository attendanceRepository, TimesheetService timesheetService) {
+    public AttendanceController(AttendanceService attendanceService,
+                                BiometricExcelParser biometricExcelParser,
+                                AttendanceRepository attendanceRepository,
+                                TimesheetService timesheetService) {
         this.attendanceService = attendanceService;
         this.biometricExcelParser = biometricExcelParser;
         this.attendanceRepository = attendanceRepository;
@@ -54,9 +57,9 @@ public class AttendanceController {
                 .body(attendanceService.createAttendance(attendance));
     }
 
-
     @PutMapping("/{id}")
-    public ResponseEntity<Attendance> updateAttendance(@PathVariable Long id, @RequestBody Attendance attendance) {
+    public ResponseEntity<Attendance> updateAttendance(@PathVariable Long id,
+                                                       @RequestBody Attendance attendance) {
         return ResponseEntity.ok(attendanceService.updateAttendance(id, attendance));
     }
 
@@ -102,11 +105,22 @@ public class AttendanceController {
         }
     }
 
+    // ========== DATE-BASED ENDPOINTS ==========
+
+    @GetMapping("/today")
+    public ResponseEntity<List<Attendance>> getTodayAttendance() {
+        LocalDate today = LocalDate.now();
+        List<Attendance> todayAttendances = attendanceRepository.findByDate(today);
+        return ResponseEntity.ok(todayAttendances);
+    }
+
     @GetMapping("/date/{date}")
     public ResponseEntity<List<Attendance>> getAttendancesByDate(
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(attendanceService.getAttendancesByDate(date));
     }
+
+    // ========== BIOMETRIC ENDPOINTS ==========
 
     @GetMapping("/recent-biometric")
     public ResponseEntity<Attendance> getMostRecentBiometricRecord(@RequestParam Long employeeId) {
@@ -115,7 +129,6 @@ public class AttendanceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ NEW: For fetching all biometric records (used by BiometricAttendanceFeed.jsx)
     @GetMapping("/biometric-records")
     public ResponseEntity<List<Attendance>> getAllBiometricRecords() {
         return ResponseEntity.ok(attendanceService.getAllBiometricRecords());
@@ -140,24 +153,10 @@ public class AttendanceController {
         }
     }
 
-    // Request DTO
-    static class ValidateAttendanceRequest {
-        private List<Long> attendanceIds;
-
-        public List<Long> getAttendanceIds() {
-            return attendanceIds;
-        }
-
-        public void setAttendanceIds(List<Long> attendanceIds) {
-            this.attendanceIds = attendanceIds;
-        }
-    }
-
-    // Add to AttendanceController.java
+    // ========== BULK & UTILITY ENDPOINTS ==========
 
     @GetMapping("/recent")
     public ResponseEntity<List<Attendance>> getRecentAttendances() {
-        // Get attendances from the last 7 days
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusDays(7);
 
@@ -181,22 +180,16 @@ public class AttendanceController {
         }
     }
 
-
     @PostMapping("/bulk")
     public ResponseEntity<?> createBulkAttendance(@RequestBody Map<String, Object> payload) {
         try {
-            // Extract attendance data from payload
             Map<String, Map<String, String>> attendanceData =
                     (Map<String, Map<String, String>>) payload.get("attendance");
 
-            // Extract timesheet data from payload
             List<Map<String, Object>> timesheetsData =
                     (List<Map<String, Object>>) payload.get("timesheets");
 
-            // Process attendance data (you'll need to implement this logic)
             List<Attendance> savedAttendances = processAttendanceData(attendanceData);
-
-            // Process timesheet data (you'll need to implement this logic)
             List<Timesheet> savedTimesheets = processTimesheetData(timesheetsData);
 
             return ResponseEntity.ok(Map.of(
@@ -214,7 +207,6 @@ public class AttendanceController {
         }
     }
 
-    // Helper method to process attendance data
     private List<Attendance> processAttendanceData(Map<String, Map<String, String>> attendanceData) {
         List<Attendance> attendances = new ArrayList<>();
 
@@ -227,10 +219,10 @@ public class AttendanceController {
                 String status = "P".equals(dateEntry.getValue()) ? "Present" : "Absent";
 
                 Attendance attendance = new Attendance();
-                attendance.setEmployee(attendanceService.getEmployeeById(employeeId)); // You'll need to add this method
+                attendance.setEmployee(attendanceService.getEmployeeById(employeeId));
                 attendance.setDate(date);
                 attendance.setStatus(status);
-                attendance.setShift("Day"); // Default shift
+                attendance.setShift("Day");
 
                 attendances.add(attendance);
             }
@@ -287,4 +279,16 @@ public class AttendanceController {
         }
     }
 
+    // ========== INNER DTO CLASS ==========
+    static class ValidateAttendanceRequest {
+        private List<Long> attendanceIds;
+
+        public List<Long> getAttendanceIds() {
+            return attendanceIds;
+        }
+
+        public void setAttendanceIds(List<Long> attendanceIds) {
+            this.attendanceIds = attendanceIds;
+        }
+    }
 }

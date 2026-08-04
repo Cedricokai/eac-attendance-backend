@@ -14,7 +14,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -29,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final UserService userService;
@@ -37,10 +41,12 @@ public class SecurityConfig {
     private final EndpointPermissionService endpointPermissionService;
 
     @Autowired
-    public SecurityConfig(@Lazy UserService userService,
-                          CustomAccessDeniedHandler accessDeniedHandler,
-                          JwtProvider jwtProvider,
-                          EndpointPermissionService endpointPermissionService) {
+    public SecurityConfig(
+            @Lazy UserService userService,
+            CustomAccessDeniedHandler accessDeniedHandler,
+            JwtProvider jwtProvider,
+            EndpointPermissionService endpointPermissionService
+    ) {
         this.userService = userService;
         this.accessDeniedHandler = accessDeniedHandler;
         this.jwtProvider = jwtProvider;
@@ -49,111 +55,477 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "http://192.168.*.*",
-                "https://eac-system.eaconcept.org",
-                "https://eaconcept.org",
-                "http://100.114.178.13",
-                "https://*.tail*.ts.net",
-                "https://cedricokai.github.io"
-        ));
-        config.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "Content-Disposition")); // Add Content-Disposition for file downloads
-        config.setAllowCredentials(true);
+        CorsConfiguration configuration =
+                new CorsConfiguration();
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+        configuration.setAllowedOriginPatterns(
+                Arrays.asList(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "http://192.168.*.*",
+                        "https://eac-system.eaconcept.org",
+                        "https://eaconcept.org",
+                        "http://100.114.178.13",
+                        "https://*.tail*.ts.net",
+                        "https://cedricokai.github.io"
+                )
+        );
+
+        configuration.setAllowedMethods(
+                Arrays.asList(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "DELETE",
+                        "OPTIONS",
+                        "PATCH"
+                )
+        );
+
+        configuration.setAllowedHeaders(List.of("*"));
+
+        configuration.setExposedHeaders(
+                List.of(
+                        "Authorization",
+                        "Content-Disposition"
+                )
+        );
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+                "/**",
+                configuration
+        );
+
         return source;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable()).cors();
-        http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
+    ) throws Exception {
 
-        http.authorizeHttpRequests(auth -> {
-            auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    // Public auth endpoints:
-                    .requestMatchers(HttpMethod.POST,
-                            "/ONEPASS/UPLOAD_RECORD_NOW",
-                            "/ONEPASS/retry-attempt"
-                    ).permitAll()
-                    .requestMatchers(HttpMethod.GET,
-                            "/ONEPASS/recent-attempts"
-                    ).permitAll()
-                    .requestMatchers(HttpMethod.POST,
+        http
+                .csrf(AbstractHttpConfigurer::disable)
+
+                .cors(cors ->
+                        cors.configurationSource(
+                                corsConfigurationSource()
+                        )
+                )
+
+                .addFilterBefore(
+                        jwtAuthenticationFilter(),
+                        UsernamePasswordAuthenticationFilter.class
+                )
+
+                .authorizeHttpRequests(auth -> {
+                    /*
+                     * CORS preflight requests.
+                     */
+                    auth.requestMatchers(
+                            HttpMethod.OPTIONS,
+                            "/**"
+                    ).permitAll();
+
+                    /*
+                     * Public authentication endpoints.
+                     */
+                    auth.requestMatchers(
+                            HttpMethod.POST,
                             "/auth/signin",
                             "/auth/signup",
                             "/auth/forgot-password",
                             "/auth/reset-password",
+                            "/ONEPASS/UPLOAD_RECORD_NOW",
+                            "/ONEPASS/retry-attempt"
+                    ).permitAll();
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/ONEPASS/recent-attempts"
+                    ).permitAll();
+
+                    /*
+                     * Public leave approval links.
+                     */
+                    auth.requestMatchers(
+                            HttpMethod.POST,
                             "/api/leave/public-approve",
                             "/api/leave/public-approve/**",
                             "/api/leave/quick-approve/**",
                             "/api/leave/quick-reject/**"
-                    ).permitAll()
+                    ).permitAll();
 
-                    // ========== ADD REPORTS ENDPOINTS HERE ==========
-                    // Allow authenticated access to reports (they need JWT token)
-                    .requestMatchers(HttpMethod.GET, "/api/reports/**").authenticated()
+                    // =================================================
+                    // LUNCH SERVING ENDPOINTS
+                    // =================================================
 
-                    // Everything else under /auth requires auth:
-                    .requestMatchers("/api/excel-comparator/rule-sets/**").authenticated()
-                    .requestMatchers("/auth/**").authenticated()
-                    .requestMatchers(HttpMethod.GET, "/api/activity-logs/**").authenticated()
-                    .requestMatchers("/api/pages/check-access").authenticated()
-                    .requestMatchers("/api/leave/admin/employee-balances").authenticated()
-                    .requestMatchers("/api/loans/**").authenticated()
-                    .requestMatchers("/api/settings/email/**").authenticated()
-                    .requestMatchers(HttpMethod.GET, "/api/payroll/reports/**").authenticated()
-                    .requestMatchers("/api/payroll/**").authenticated();
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/serve/stats/daily"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
 
-            loadDynamicPermissions(auth);
-            auth.anyRequest().authenticated();
-        });
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/serve/today"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
 
-        http.exceptionHandling(e -> e
-                .accessDeniedHandler(accessDeniedHandler)
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
-        );
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/serve/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
 
-        http.formLogin().disable();
-        http.logout().disable();
+                    auth.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/lunch/serve"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/lunch/serve/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.PUT,
+                            "/api/lunch/serve/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.PATCH,
+                            "/api/lunch/serve/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.DELETE,
+                            "/api/lunch/serve/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    // =================================================
+                    // LUNCH ASSIGNMENT ENDPOINTS
+                    // =================================================
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/assignments/active"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/assignments/date"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/assignments/employee/*"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/assignments/employee/*/active"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/assignments/weekly"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/lunch/assignments/weekly"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/lunch/assignments"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.PUT,
+                            "/api/lunch/assignments/*"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.DELETE,
+                            "/api/lunch/assignments/*"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.PATCH,
+                            "/api/lunch/assignments/*/suspend"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.PATCH,
+                            "/api/lunch/assignments/*/activate"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    // =================================================
+                    // LUNCH MEAL ENDPOINTS
+                    // =================================================
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/lunch/meals/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR",
+                            "KITCHEN",
+                            "MANAGER"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/lunch/meals/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.PUT,
+                            "/api/lunch/meals/**"
+                    ).hasAnyRole(
+                            "ADMIN",
+                            "HR"
+                    );
+
+                    auth.requestMatchers(
+                            HttpMethod.DELETE,
+                            "/api/lunch/meals/**"
+                    ).hasRole("ADMIN");
+
+                    // =================================================
+                    // OTHER AUTHENTICATED ENDPOINTS
+                    // =================================================
+
+                    auth.requestMatchers(
+                            "/api/excel-comparator/rule-sets/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/auth/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/activity-logs/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/api/pages/check-access"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/api/leave/admin/employee-balances"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/api/loans/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/api/settings/email/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/payroll/reports/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/api/payroll/**"
+                    ).authenticated();
+
+                    /*
+                     * Load database-configured endpoint permissions.
+                     */
+                    loadDynamicPermissions(auth);
+
+                    /*
+                     * Every endpoint not listed above requires login.
+                     */
+                    auth.anyRequest().authenticated();
+                })
+
+                .exceptionHandling(exception ->
+                        exception
+                                .accessDeniedHandler(
+                                        accessDeniedHandler
+                                )
+                                .authenticationEntryPoint(
+                                        new HttpStatusEntryPoint(
+                                                HttpStatus.UNAUTHORIZED
+                                        )
+                                )
+                )
+
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable);
 
         return http.build();
     }
 
     private void loadDynamicPermissions(
-            org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+            AuthorizeHttpRequestsConfigurer<HttpSecurity>
+                    .AuthorizationManagerRequestMatcherRegistry auth
+    ) {
         try {
-            List<EndpointPermission> permissions = endpointPermissionService.getAllActivePermissions();
+            List<EndpointPermission> permissions =
+                    endpointPermissionService
+                            .getAllActivePermissions();
 
             for (EndpointPermission permission : permissions) {
-                if (permission.getRoles().isEmpty() && permission.getUsers().isEmpty()) continue;
+                String endpointPattern =
+                        permission.getEndpointPattern();
 
-                List<String> authorities = new ArrayList<>();
-                for (Role role : permission.getRoles()) authorities.add(role.getName());
-                for (User user : permission.getUsers()) authorities.add("USER_" + user.getId() + "_" + permission.getId());
+                if (endpointPattern == null
+                        || endpointPattern.isBlank()) {
+                    continue;
+                }
+
+                /*
+                 * Lunch endpoints are handled by the static rules above.
+                 */
+                if (endpointPattern.startsWith("/api/lunch/")) {
+                    continue;
+                }
+
+                if (permission.getRoles().isEmpty()
+                        && permission.getUsers().isEmpty()) {
+                    continue;
+                }
+
+                List<String> authorities =
+                        new ArrayList<>();
+
+                for (Role role : permission.getRoles()) {
+                    authorities.add(role.getName());
+                }
+
+                for (User user : permission.getUsers()) {
+                    authorities.add(
+                            "USER_"
+                                    + user.getId()
+                                    + "_"
+                                    + permission.getId()
+                    );
+                }
 
                 if (!authorities.isEmpty()) {
                     auth.requestMatchers(
-                            HttpMethod.valueOf(permission.getHttpMethod()),
-                            permission.getEndpointPattern()
-                    ).hasAnyAuthority(authorities.toArray(new String[0]));
+                            HttpMethod.valueOf(
+                                    permission
+                                            .getHttpMethod()
+                                            .toUpperCase()
+                            ),
+                            endpointPattern
+                    ).hasAnyAuthority(
+                            authorities.toArray(new String[0])
+                    );
                 }
             }
-        } catch (Exception e) {
-            System.err.println("Error loading dynamic permissions: " + e.getMessage());
-            e.printStackTrace();
+
+        } catch (Exception exception) {
+            System.err.println(
+                    "Error loading dynamic permissions: "
+                            + exception.getMessage()
+            );
+
+            exception.printStackTrace();
         }
     }
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(jwtProvider, userService);
+        return new JwtAuthenticationFilter(
+                jwtProvider,
+                userService
+        );
     }
 
     @Bean
@@ -162,11 +534,19 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authManager(HttpSecurity http) throws Exception {
-        AuthenticationManagerBuilder authenticationManagerBuilder =
-                http.getSharedObject(AuthenticationManagerBuilder.class);
-        authenticationManagerBuilder.userDetailsService(userService)
+    public AuthenticationManager authManager(
+            HttpSecurity http
+    ) throws Exception {
+
+        AuthenticationManagerBuilder builder =
+                http.getSharedObject(
+                        AuthenticationManagerBuilder.class
+                );
+
+        builder
+                .userDetailsService(userService)
                 .passwordEncoder(passwordEncoder());
-        return authenticationManagerBuilder.build();
+
+        return builder.build();
     }
 }
