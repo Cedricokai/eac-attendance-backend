@@ -416,7 +416,7 @@
             <p class="action-title">Approve or Review this Request</p>
 
             <div class="action-buttons">
-                <a th:href="@{${baseUrl}/leave/approval/{id}(id=${leave.id})}" class="btn btn-approve">Review & Approve</a>
+                <a th:href="${baseUrl + '/leave?leaveId=' + leave.id}" class="btn btn-approve">Review Request</a>
                 <a th:href="@{${baseUrl}/supervisorDashboard}" class="btn btn-view">View All Requests</a>
             </div>
         </div>

@@ -83,7 +83,7 @@
 
         <p>Please review this request and take appropriate action:</p>
 
-        <a href="#" class="button" th:href="${baseUrl} + '/loans/' + ${loanId}">View Loan Request</a>
+        <a href="#" class="button" th:href="${baseUrl + '/loanManagementDashboard?loanId=' + loanId}">View Loan Request</a>
 
         <p style="margin-top: 20px;">You can approve or reject this request through the admin dashboard.</p>
 

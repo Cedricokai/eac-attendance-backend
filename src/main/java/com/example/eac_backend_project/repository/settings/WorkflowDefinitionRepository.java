@@ -10,4 +10,5 @@ public interface WorkflowDefinitionRepository extends JpaRepository<WorkflowDefi
     Optional<WorkflowDefinition> findFirstByActiveTrueAndConditionJsonIsNull(); // default workflow
     List<WorkflowDefinition> findByActiveTrueAndEntityType(String entityType);
     Optional<WorkflowDefinition> findFirstByActiveTrueAndEntityTypeAndConditionJsonIsNull(String entityType);
+    Optional<WorkflowDefinition> findByName(String name);
 }

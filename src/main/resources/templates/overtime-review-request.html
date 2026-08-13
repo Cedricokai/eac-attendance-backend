@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Overtime Request</title>
+</head>
+<body style="margin:0;padding:24px;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                <tr>
+                    <td style="padding:24px;">
+                        <p style="margin:0 0 12px;font-size:16px;">
+                            Hello <span th:text="${recipientName}">Reviewer</span>,
+                        </p>
+                        <p style="margin:0 0 8px;font-size:14px;line-height:1.6;">
+                            <span th:text="${requestCount}">1</span>
+                            overtime request<span th:if="${requestCount != 1}">s have</span><span th:if="${requestCount == 1}"> has</span>
+                            been submitted and require<span th:if="${requestCount == 1}">s</span> your review.
+                        </p>
+                        <p style="margin:0 0 20px;font-size:14px;line-height:1.6;">
+                            Please review the request details below and use the link provided to continue.
+                        </p>
+                        <table role="presentation" width="100%" cellpadding="8" cellspacing="0" border="0" style="border-collapse:collapse;font-size:13px;">
+                            <tr>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Employee</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">ID</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Job</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Date</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Time</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Hours</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Notes</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Requested by</th>
+                            </tr>
+                            <tr th:each="overtime : ${overtimes}">
+                                <td style="border:1px solid #d1d5db;" th:text="|${overtime.employee.firstName} ${overtime.employee.lastName}|">Employee</td>
+                                <td style="border:1px solid #d1d5db;" th:text="${overtime.employee.employeeId}">EMP001</td>
+                                <td style="border:1px solid #d1d5db;" th:text="${overtime.employee.job == null ? 'Not attached' : overtime.employee.job.name}">Job</td>
+                                <td style="border:1px solid #d1d5db;" th:text="${overtime.date}">Date</td>
+                                <td style="border:1px solid #d1d5db;" th:text="|${overtime.startTime} - ${overtime.endTime}|">Time</td>
+                                <td style="border:1px solid #d1d5db;" th:text="${overtime.overtimeHours}">Hours</td>
+                                <td style="border:1px solid #d1d5db;white-space:pre-wrap;" th:text="${overtime.notes == null || overtime.notes.isEmpty() ? 'None' : overtime.notes}">Notes</td>
+                                <td style="border:1px solid #d1d5db;" th:text="${requestedBy}">Requester Name</td>
+                            </tr>
+                        </table>
+                        <p style="margin:22px 0 0;text-align:center;">
+                            <a th:href="${reviewUrl}" style="display:inline-block;padding:11px 20px;border-radius:6px;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">Please review</a>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

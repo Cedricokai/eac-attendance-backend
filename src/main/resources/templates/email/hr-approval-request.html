@@ -552,8 +552,8 @@
             <p class="action-title">Review and Process Request</p>
 
             <div class="action-buttons">
-                <a th:href="@{${baseUrl}/leave/approval/{id}(id=${leave.id})}" class="btn btn-approve">Review & Approve</a>
-                <a th:href="@{${baseUrl}/hr/policies}" class="btn btn-policies">View Policies</a>
+                <a th:href="${baseUrl + '/leave?leaveId=' + leave.id}" class="btn btn-approve">Review Request</a>
+                <a th:href="${baseUrl + '/settingspage'}" class="btn btn-policies">View Policies</a>
             </div>
 
             <p style="color: #64748b; margin-top: 20px; font-size: 14px;">HR processing deadline: <strong>72 hours</strong> from receipt</p>

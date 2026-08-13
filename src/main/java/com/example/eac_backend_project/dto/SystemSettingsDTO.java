@@ -43,6 +43,39 @@ public class SystemSettingsDTO {
     private String loanApprovalRecipients;
     private String loanRejectionRecipients;
 
+
+    private String accountantRecipients;
+
+    private String reviewerRecipients;
+
+    private String financeRecipients;
+    private Boolean requesterNotificationEnabled = true;
+    private Boolean accountantNotificationEnabled = true;
+    private Boolean reviewerNotificationEnabled = true;
+    private Boolean financeNotificationEnabled = true;
+
+    private String inventoryRequestRecipients;
+    private String inventoryPlannerRecipients;
+    private String inventoryProcurementRecipients;
+    private String inventoryStoreRecipients;
+    private String inventoryStatusRecipients;
+
+    private Boolean inventoryRequesterNotificationEnabled;
+    private Boolean inventoryPlannerNotificationEnabled;
+    private Boolean inventoryProcurementNotificationEnabled;
+    private Boolean inventoryStoreNotificationEnabled;
+    private Boolean inventoryStatusNotificationEnabled;
+
+    private String ppeRequestRecipients;
+    private String ppeProcurementRecipients;
+    private String ppeStoreRecipients;
+    private String ppeStatusRecipients;
+
+    private Boolean ppeRequesterNotificationEnabled;
+    private Boolean ppeProcurementNotificationEnabled;
+    private Boolean ppeStoreNotificationEnabled;
+    private Boolean ppeStatusNotificationEnabled;
+
     public Double getHourlyRate() { return hourlyRate; }
     public void setHourlyRate(Double hourlyRate) { this.hourlyRate = hourlyRate; }
     public Double getOvertimeHourlyRate() { return overtimeHourlyRate; }

@@ -9,6 +9,6 @@ public class GeneratePayrollRequest {
     private Map<Long, Map<String, Double>> temporaryAllowances;
     private SettingsDTO settings;
     private Map<Long, Integer> leaveDays;
-    private Boolean includeBasicSalary;
+    private Boolean includeBasicSalary = true;
     private Map<Long, Double> creditAmounts;
 }

@@ -2,12 +2,20 @@ package com.example.eac_backend_project.Service;
 
 import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
 import com.example.eac_backend_project.Service.settings.SettingsService;
+import com.example.eac_backend_project.Service.email.EmailService;
+import com.example.eac_backend_project.dto.OvertimeListDTO;
 import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.Overtime;
+import com.example.eac_backend_project.entity.attendance.Job;
+import com.example.eac_backend_project.entity.inventory.User;
 import com.example.eac_backend_project.entity.settings.SystemSettings;
 import com.example.eac_backend_project.repository.EmployeeRepository;
 import com.example.eac_backend_project.repository.OvertimeRepository;
 import com.example.eac_backend_project.repository.settings.SystemSettingsRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +33,18 @@ public class OvertimeService {
 //    private final OverviewRepository overviewRepository;
     private final SystemSettingsRepository systemSettingsRepository;
     private final SettingsService settingsService;
+    private final EmailService emailService;
 
     public OvertimeService(OvertimeRepository overtimeRepository,
                            EmployeeRepository employeeRepository,
                            SystemSettingsRepository systemSettingsRepository,
-                           SettingsService settingsService) {
+                           SettingsService settingsService,
+                           EmailService emailService) {
         this.overtimeRepository = overtimeRepository;
         this.employeeRepository = employeeRepository;
         this.systemSettingsRepository = systemSettingsRepository;
         this.settingsService = settingsService;
+        this.emailService = emailService;
     }
 
     public List<Overtime> getAllOvertimes() {
@@ -101,6 +112,74 @@ public class OvertimeService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public void notifySupervisorOfDelegatedRequest(Overtime overtime, User requestedBy) {
+        Employee employee = employeeRepository.findById(overtime.getEmployee().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+        overtime.setEmployee(employee);
+        Employee supervisor = null;
+        Job job = employee.getJob();
+        if (job != null && job.getSupervisor() != null) {
+            supervisor = job.getSupervisor();
+        } else if (employee.getSupervisor() != null) {
+            supervisor = employee.getSupervisor();
+        }
+
+        if (supervisor != null && supervisor.getEmail() != null && !supervisor.getEmail().isBlank()) {
+            try {
+                String supervisorName = ((supervisor.getFirstName() == null ? "" : supervisor.getFirstName()) + " "
+                        + (supervisor.getLastName() == null ? "" : supervisor.getLastName())).trim();
+                emailService.sendOvertimeRequestToSupervisor(
+                        overtime,
+                        supervisor.getEmail(),
+                        supervisorName,
+                        requestedBy
+                );
+                return;
+            } catch (Exception e) {
+                System.err.println("Failed to notify job supervisor; using overtime recipient fallback: " + e.getMessage());
+            }
+        }
+
+        emailService.sendOvertimeRequestToConfiguredRecipients(overtime, requestedBy);
+    }
+
+    @Transactional(readOnly = true)
+    public void notifySupervisorsOfDelegatedRequests(List<Overtime> overtimes, User requestedBy) {
+        Map<String, List<Overtime>> requestsByRecipient = new LinkedHashMap<>();
+        Map<String, String> recipientNames = new HashMap<>();
+        List<Overtime> fallbackRequests = new ArrayList<>();
+
+        for (Overtime overtime : overtimes) {
+            Employee employee = employeeRepository.findById(overtime.getEmployee().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+            overtime.setEmployee(employee);
+
+            Job job = employee.getJob();
+            Employee supervisor = job != null && job.getSupervisor() != null
+                    ? job.getSupervisor()
+                    : employee.getSupervisor();
+
+            if (supervisor == null || supervisor.getEmail() == null || supervisor.getEmail().isBlank()) {
+                fallbackRequests.add(overtime);
+                continue;
+            }
+
+            String email = supervisor.getEmail().trim().toLowerCase(Locale.ROOT);
+            String name = ((supervisor.getFirstName() == null ? "" : supervisor.getFirstName()) + " "
+                    + (supervisor.getLastName() == null ? "" : supervisor.getLastName())).trim();
+            requestsByRecipient.computeIfAbsent(email, ignored -> new ArrayList<>()).add(overtime);
+            recipientNames.putIfAbsent(email, name);
+        }
+
+        requestsByRecipient.forEach((email, requests) ->
+                emailService.sendOvertimeRequestsToSupervisor(requests, email, recipientNames.get(email), requestedBy));
+
+        if (!fallbackRequests.isEmpty()) {
+            emailService.sendOvertimeRequestsToConfiguredRecipients(fallbackRequests, requestedBy);
+        }
+    }
+
     // Rest of your existing methods remain the same...
     public Overtime updateOvertime(Long id, Overtime overtimeDetails) {
         Overtime overtime = getOvertimeById(id);
@@ -119,6 +198,85 @@ public class OvertimeService {
         }
 
         return overtimeRepository.save(overtime);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OvertimeListDTO> getOvertimePage(
+            LocalDate startDate,
+            LocalDate endDate,
+            Long categoryId,
+            String status,
+            String search,
+            Double minHours,
+            Double maxHours,
+            Double minAmount,
+            Double maxAmount,
+            int page,
+            int size
+    ) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException(
+                    "startDate and endDate are required"
+            );
+        }
+
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException(
+                    "endDate must be on or after startDate"
+            );
+        }
+
+        if (minHours != null &&
+                maxHours != null &&
+                minHours > maxHours) {
+            throw new IllegalArgumentException(
+                    "minHours cannot be greater than maxHours"
+            );
+        }
+
+        if (minAmount != null &&
+                maxAmount != null &&
+                minAmount > maxAmount) {
+            throw new IllegalArgumentException(
+                    "minAmount cannot be greater than maxAmount"
+            );
+        }
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 500);
+
+        Long normalizedCategoryId =
+                categoryId != null && categoryId > 0
+                        ? categoryId
+                        : null;
+
+        String normalizedStatus =
+                status == null ? "" : status.trim();
+
+        String normalizedSearch =
+                search == null ? "" : search.trim();
+
+        Pageable pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(
+                        Sort.Order.desc("date"),
+                        Sort.Order.desc("id")
+                )
+        );
+
+        return overtimeRepository.findOvertimePage(
+                startDate,
+                endDate,
+                normalizedCategoryId,
+                normalizedStatus,
+                normalizedSearch,
+                minHours,
+                maxHours,
+                minAmount,
+                maxAmount,
+                pageable
+        );
     }
 
     private void calculateAndSetOvertimeHours(Overtime overtime) {

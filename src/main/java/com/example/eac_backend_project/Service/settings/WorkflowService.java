@@ -32,6 +32,14 @@ public class WorkflowService {
     }
 
     private void createDefaultWorkflowIfMissing(String entityType) {
+
+        String defaultName = "Default " + entityType + " Workflow";
+
+        // Check by name (unique column) – if exists, skip creation
+        if (workflowDefinitionRepository.findByName(defaultName).isPresent()) {
+            System.out.println("Default workflow already exists for: " + entityType);
+            return;
+        }
         // Check if a default (no‑condition) workflow already exists for this entity type
         boolean exists = workflowDefinitionRepository
                 .findFirstByActiveTrueAndEntityTypeAndConditionJsonIsNull(entityType)
@@ -143,6 +151,27 @@ public class WorkflowService {
                 return false;
             default: return false;
         }
+    }
+
+    // In WorkflowService.java
+    public WorkflowDefinition saveWorkflow(WorkflowDefinition workflow) {
+        // Validate each step has required fields
+        for (WorkflowStep step : workflow.getSteps()) {
+            if (step.getTargetStatus() == null || step.getTargetStatus().trim().isEmpty()) {
+                throw new IllegalArgumentException("Step " + step.getStepName() + " is missing target status");
+            }
+
+            // Validate requiredRole format (allow comma-separated)
+            if (step.getRequiredRole() != null && !step.getRequiredRole().trim().isEmpty()) {
+                String[] roles = step.getRequiredRole().split(",");
+                for (String role : roles) {
+                    if (role.trim().isEmpty()) {
+                        throw new IllegalArgumentException("Invalid role format in step: " + step.getStepName());
+                    }
+                }
+            }
+        }
+        return workflowDefinitionRepository.save(workflow);
     }
 
     private Object getFieldValue(Object entity, String field) {

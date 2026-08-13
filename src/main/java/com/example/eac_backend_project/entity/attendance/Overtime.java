@@ -3,6 +3,7 @@ package com.example.eac_backend_project.entity.attendance;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
+import com.example.eac_backend_project.entity.inventory.User;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -40,6 +41,13 @@ public class Overtime {
     private LocalTime endTime;
     private Double overtimeHours;
     private String status = "Pending";
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "requested_by_user_id")
+    private User requestedBy;
+
+    @Column(name = "request_source", length = 40)
+    private String requestSource;
 
     private Double rawOvertimeHours;
 
@@ -84,6 +92,10 @@ public class Overtime {
     public void setOvertimeHours(Double overtimeHours) { this.overtimeHours = overtimeHours; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public User getRequestedBy() { return requestedBy; }
+    public void setRequestedBy(User requestedBy) { this.requestedBy = requestedBy; }
+    public String getRequestSource() { return requestSource; }
+    public void setRequestSource(String requestSource) { this.requestSource = requestSource; }
     public Double getBaseHourlyRate() { return baseHourlyRate; }
     public void setBaseHourlyRate(Double baseHourlyRate) { this.baseHourlyRate = baseHourlyRate; }
     public Double getOvertimeMultiplier() { return overtimeMultiplier; }

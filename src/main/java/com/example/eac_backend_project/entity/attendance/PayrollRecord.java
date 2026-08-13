@@ -68,7 +68,7 @@ public class PayrollRecord {
     private Double nonTaxableIncome;
 
     @Column(name = "include_basic_salary")
-    private Boolean includeBasicSalary = false;
+    private Boolean includeBasicSalary = true;
 
 
     @Column(name = "use_non_taxable_allowances")

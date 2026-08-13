@@ -1,9 +1,9 @@
 package com.example.eac_backend_project.entity.directpurchase;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -27,10 +27,22 @@ public class DirectPurchase {
     private LocalDate requestDate;
 
     @Column(nullable = false)
-    private String requester; // procurement officer
+    private String requester;
+
+    @Column(name = "requester_user_id")
+    private Long requesterUserId;
+
+    @Column(name = "requester_email")
+    private String requesterEmail;
 
     @Column(nullable = false)
-    private String accountant; // approving officer
+    private String accountant;
+
+    @Column(name = "accountant_user_id")
+    private Long accountantUserId;
+
+    @Column(name = "accountant_email")
+    private String accountantEmail;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
@@ -42,27 +54,33 @@ public class DirectPurchase {
     @Column(nullable = false)
     private Double totalAmount = 0.0;
 
-    @OneToMany(mappedBy = "directPurchase", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(
+            mappedBy = "directPurchase",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
     private List<DirectPurchaseItem> items = new ArrayList<>();
 
-    // Helper method to add item
     public void addItem(DirectPurchaseItem item) {
+        if (item == null) return;
         items.add(item);
         item.setDirectPurchase(this);
         recalculateTotal();
     }
 
-    // Helper method to remove item
     public void removeItem(DirectPurchaseItem item) {
+        if (item == null) return;
         items.remove(item);
         item.setDirectPurchase(null);
         recalculateTotal();
     }
 
-    // Recalculate total amount from items
     public void recalculateTotal() {
-        this.totalAmount = items.stream()
-                .mapToDouble(DirectPurchaseItem::getTotal)
+        this.totalAmount = items == null
+                ? 0.0
+                : items.stream()
+                .mapToDouble(item -> item.getTotal() == null ? 0.0 : item.getTotal())
                 .sum();
     }
 }

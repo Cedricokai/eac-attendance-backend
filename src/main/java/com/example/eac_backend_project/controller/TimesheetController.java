@@ -2,6 +2,7 @@ package com.example.eac_backend_project.controller;
 
 import com.example.eac_backend_project.Service.JobService;
 import com.example.eac_backend_project.Service.TimesheetService;
+import com.example.eac_backend_project.dto.TimesheetListDTO;
 import com.example.eac_backend_project.dto.TimesheetUpdateDTO;
 import com.example.eac_backend_project.entity.attendance.Timesheet;
 import com.example.eac_backend_project.entity.attendance.TimesheetStatus;
@@ -43,7 +44,7 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetService.getAllTimesheets());
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<Timesheet> getTimesheetById(@PathVariable Long id) {
         return ResponseEntity.ok(timesheetService.getTimesheetById(id));
     }
@@ -60,13 +61,13 @@ public class TimesheetController {
                 .body(timesheetService.createBatchTimesheets(timesheets));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<Timesheet> updateTimesheet(@PathVariable Long id, @RequestBody TimesheetUpdateDTO dto) {
         Timesheet updated = timesheetService.updateTimesheetPartial(id, dto);
         return ResponseEntity.ok(updated);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> deleteTimesheet(@PathVariable Long id) {
         timesheetService.deleteTimesheet(id);
         return ResponseEntity.noContent().build();
@@ -87,7 +88,7 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetService.getEmployeeTimesheets(employeeId, startDate, endDate));
     }
 
-    @PatchMapping("/{id}/status")
+    @PatchMapping("/{id:\\d+}/status")
     public ResponseEntity<Timesheet> updateTimesheetStatus(
             @PathVariable Long id,
             @RequestParam String status) {
@@ -333,6 +334,76 @@ public class TimesheetController {
                     "success", false,
                     "error", e.getMessage()
             ));
+        }
+    }
+
+    @GetMapping("/rows")
+    public ResponseEntity<?> getTimesheetRows(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate,
+
+            @RequestParam(required = false)
+            Long employeeId,
+
+            @RequestParam(required = false)
+            Long categoryId,
+
+            @RequestParam(required = false)
+            Long jobId,
+
+            @RequestParam(defaultValue = "false")
+            boolean withoutJob,
+
+            @RequestParam(required = false)
+            TimesheetStatus status,
+
+            @RequestParam(required = false)
+            Boolean sourceMissing,
+
+            @RequestParam(defaultValue = "")
+            String search
+    ) {
+        try {
+            List<TimesheetListDTO> result =
+                    timesheetService.getTimesheetRows(
+                            startDate,
+                            endDate,
+                            employeeId,
+                            categoryId,
+                            jobId,
+                            withoutJob,
+                            status,
+                            sourceMissing,
+                            search
+                    );
+
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(
+                    Map.of(
+                            "success", false,
+                            "message", e.getMessage()
+                    )
+            );
+        } catch (Exception e) {
+            logger.error(
+                    "Failed to load timesheet rows",
+                    e
+            );
+
+            return ResponseEntity.internalServerError().body(
+                    Map.of(
+                            "success", false,
+                            "message",
+                            "Failed to load timesheets: " +
+                                    e.getMessage()
+                    )
+            );
         }
     }
 

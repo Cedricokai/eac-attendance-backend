@@ -152,7 +152,14 @@
     const token = urlParams.get('token');
     const leaveId = urlParams.get('leaveId');
 
-    const API_BASE_URL = 'http://localhost:8080'; // Change to your backend URL
+    const hostname = window.location.hostname;
+    const API_BASE_URL = hostname === 'localhost' || hostname === '127.0.0.1'
+        ? 'http://localhost:8080'
+        : hostname.startsWith('192.168.')
+            ? 'http://192.168.1.97:8080'
+            : hostname === '100.114.178.13'
+                ? 'http://100.114.178.13:8080'
+                : 'https://api.eaconcept.org';
 
     async function approveLeave() {
         // Validate parameters

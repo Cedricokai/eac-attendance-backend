@@ -26,6 +26,6 @@ public interface JobPositionRepository extends JpaRepository<JobPosition, Long> 
     List<JobPosition> findByCategoryName(@Param("categoryName") String categoryName);
 
     List<JobPosition> findAllByOrderByNameAsc();
-
+    List<JobPosition> findByDepartmentId(Long departmentId);
     boolean existsByName(String name);
 }

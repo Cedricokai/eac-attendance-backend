@@ -18,6 +18,7 @@ public class OvertimeRequestDTO {
     private Double calculatedOvertimePay;
     private Boolean multiplierAppliedToHours; // Add this field
     private Double rawOvertimeHours; // ADD THIS
+    private String notes;
 
     // Getters and Setters
     public Long getEmployeeId() { return employeeId; }
@@ -38,4 +39,6 @@ public class OvertimeRequestDTO {
     public void setOvertimeHours(Double overtimeHours) { this.overtimeHours = overtimeHours; }
     public Double getCalculatedOvertimePay() { return calculatedOvertimePay; }
     public void setCalculatedOvertimePay(Double calculatedOvertimePay) { this.calculatedOvertimePay = calculatedOvertimePay; }
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 }

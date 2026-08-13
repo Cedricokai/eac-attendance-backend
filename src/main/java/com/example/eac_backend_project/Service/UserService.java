@@ -36,13 +36,16 @@ public class UserService implements UserDetailsService {
     private final EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
+    private final FrontendUrlService frontendUrlService;
 
     public UserService(UserRepository userRepository, EmployeeRepository employeeRepository,
-                       PasswordEncoder passwordEncoder, RoleRepository roleRepository) {
+                       PasswordEncoder passwordEncoder, RoleRepository roleRepository,
+                       FrontendUrlService frontendUrlService) {
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
         this.passwordEncoder = passwordEncoder;
         this.roleRepository = roleRepository;
+        this.frontendUrlService = frontendUrlService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -545,17 +548,7 @@ public class UserService implements UserDetailsService {
     }
 
     public String buildResetPasswordLink(HttpServletRequest request, String token) {
-        String base;
-
-        if (requestCameViaLocalhost(request)) {
-            base = "http://localhost";         // no port
-        } else if (requestCameViaLanIp(request)) {
-            base = "http://192.168.1.97";      // no port
-        } else {
-            base = publicBaseUrl;              // your public URL (no port)
-        }
-
-        return base + "/#/reset-password?token=" + token;
+        return frontendUrlService.route("/reset-password?token=" + token);
     }
 
     private boolean requestCameViaLocalhost(HttpServletRequest request) {
@@ -616,6 +609,7 @@ public class UserService implements UserDetailsService {
 
     @Value("${app.email.base-url.public}")
     private String publicBaseUrl;
+
 
 
 

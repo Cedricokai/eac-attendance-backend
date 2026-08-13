@@ -95,6 +95,7 @@ public class SecurityConfig {
                             "/api/leave/quick-approve/**",
                             "/api/leave/quick-reject/**"
                     ).permitAll()
+                    .requestMatchers("/api/public/hospital-visits/**").permitAll()
 
                     // ========== ADD REPORTS ENDPOINTS HERE ==========
                     // Allow authenticated access to reports (they need JWT token)
@@ -109,7 +110,9 @@ public class SecurityConfig {
                     .requestMatchers("/api/loans/**").authenticated()
                     .requestMatchers("/api/settings/email/**").authenticated()
                     .requestMatchers(HttpMethod.GET, "/api/payroll/reports/**").authenticated()
-                    .requestMatchers("/api/payroll/**").authenticated();
+                    .requestMatchers("/api/payroll/**").authenticated()
+                    .requestMatchers("/api/biometric/raw-events/**").authenticated();
+
 
             loadDynamicPermissions(auth);
             auth.anyRequest().authenticated();

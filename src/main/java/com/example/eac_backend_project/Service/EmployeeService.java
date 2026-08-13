@@ -97,10 +97,32 @@ public class EmployeeService {
         employee.setUsePositionRate(employeeDTO.getUsePositionRate() != null ? employeeDTO.getUsePositionRate() : false);
 
         // --- Category ---
-        if (employeeDTO.getCategory() != null && !employeeDTO.getCategory().isEmpty()) {
-            Category category = categoryRepository.findByName(employeeDTO.getCategory()).orElse(null);
-            employee.setCategory(category);
+        Category category = null;
+
+        if (employeeDTO.getCategoryId() != null) {
+            category = categoryRepository
+                    .findById(employeeDTO.getCategoryId())
+                    .orElseThrow(() ->
+                            new RuntimeException(
+                                    "Category not found with id: " +
+                                            employeeDTO.getCategoryId()
+                            )
+                    );
+        } else if (
+                employeeDTO.getCategory() != null &&
+                        !employeeDTO.getCategory().isBlank()
+        ) {
+            category = categoryRepository
+                    .findByName(employeeDTO.getCategory().trim())
+                    .orElseThrow(() ->
+                            new RuntimeException(
+                                    "Category not found: " +
+                                            employeeDTO.getCategory()
+                            )
+                    );
         }
+
+        employee.setCategory(category);
 
         // --- Allowances & Salary ---
         employee.setBasicSalary(employeeDTO.getBasicSalary());
@@ -502,6 +524,7 @@ public class EmployeeService {
             if (employeeDTO.getApplyWithholdingTax() != null) {
                 existingEmployee.setApplyWithholdingTax(employeeDTO.getApplyWithholdingTax());
             }
+            if (employeeDTO.getJobGrade() != null) existingEmployee.setJobGrade(employeeDTO.getJobGrade());
             if (employeeDTO.getTierTwoAccountName() != null) existingEmployee.setTierTwoAccountName(employeeDTO.getTierTwoAccountName());
             if (employeeDTO.getBaseNumber() != null) existingEmployee.setBaseNumber(employeeDTO.getBaseNumber());
             if (employeeDTO.getTierTwoAccountNumber() != null) existingEmployee.setTierTwoAccountNumber(employeeDTO.getTierTwoAccountNumber());
@@ -527,12 +550,33 @@ public class EmployeeService {
             if (employeeDTO.getActive() != null) existingEmployee.setActive(employeeDTO.getActive());
             if (employeeDTO.getIsSupervisor() != null) existingEmployee.setIsSupervisor(employeeDTO.getIsSupervisor());
 
-            if (employeeDTO.getCategory() != null) {
-                Category category = categoryRepository.findByName(employeeDTO.getCategory())
-                        .orElse(null);
+            if (employeeDTO.getCategoryId() != null) {
+                Category category = categoryRepository
+                        .findById(employeeDTO.getCategoryId())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Category not found with id: " +
+                                                employeeDTO.getCategoryId()
+                                )
+                        );
+
+                existingEmployee.setCategory(category);
+
+            } else if (
+                    employeeDTO.getCategory() != null &&
+                            !employeeDTO.getCategory().isBlank()
+            ) {
+                Category category = categoryRepository
+                        .findByName(employeeDTO.getCategory().trim())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Category not found: " +
+                                                employeeDTO.getCategory()
+                                )
+                        );
+
                 existingEmployee.setCategory(category);
             }
-
             if (employeeDTO.getUsePositionRate() != null && employeeDTO.getUsePositionRate() &&
                     employeeDTO.getJobPosition() != null && employeeDTO.getJobGrade() != null) {
                 existingEmployee.setMinimumRate(employeeDTO.getMinimumRate());
@@ -687,64 +731,152 @@ public class EmployeeService {
     }
 
     public EmployeeDTO convertToDTO(Employee employee) {
-        Long jobId = null;
-        String jobName = null;
-        Boolean isSupervisor = employee.getIsSupervisor();
-        if (employee.getJob() != null) {
-            jobId = employee.getJob().getId();
-            jobName = employee.getJob().getName();
+        if (employee == null) {
+            return null;
         }
-        String categoryName = employee.getCategory() != null ? employee.getCategory().getName() : null;
+
         EmployeeDTO dto = new EmployeeDTO();
+
+        // =========================================================
+        // BASIC EMPLOYEE INFORMATION
+        // =========================================================
+
         dto.setId(employee.getId());
         dto.setEmployeeId(employee.getEmployeeId());
         dto.setFirstName(employee.getFirstName());
         dto.setLastName(employee.getLastName());
         dto.setEmail(employee.getEmail());
         dto.setPhone(employee.getPhone());
+
         dto.setJobPosition(employee.getJobPosition());
         dto.setJobGrade(employee.getJobGrade());
-        dto.setCategory(categoryName);
-        dto.setMinimumRate(employee.getMinimumRate());
         dto.setWorkType(employee.getWorkType());
-        dto.setAccountNumber(employee.getAccountNumber());
-        dto.setSsnitNumber(employee.getSsnitNumber());
-        dto.setTinNumber(employee.getTinNumber());
-        dto.setTagNumber(employee.getTagNumber());
-        dto.setDateOfBirth(employee.getDateOfBirth());
-        dto.setLocation(employee.getLocation());
-        dto.setGhanaCard(employee.getGhanaCard());
-        dto.setBank(employee.getBank());
-        dto.setBankBranch(employee.getBankBranch());
-        dto.setContactPerson(employee.getContactPerson());
-        dto.setRelationship(employee.getRelationship());
-        dto.setTownOfResidence(employee.getTownOfResidence());
-        dto.setHouseNumber(employee.getHouseNumber());
-        dto.setSpouse(employee.getSpouse());
-        dto.setNumberOfChildren(employee.getNumberOfChildren());
-        dto.setAge(employee.getAge());
+
+        dto.setMinimumRate(employee.getMinimumRate());
         dto.setUsePositionRate(employee.getUsePositionRate());
         dto.setBasicSalary(employee.getBasicSalary());
+
         dto.setStartDate(employee.getStartDate());
         dto.setEndDate(employee.getEndDate());
-        dto.setEmergencyContact(employee.getEmergencyContact());
+        dto.setDateOfBirth(employee.getDateOfBirth());
+        dto.setAge(employee.getAge());
+
         dto.setDepartment(employee.getDepartment());
+        dto.setLocation(employee.getLocation());
+
+        dto.setActive(employee.getActive());
+        dto.setIsSupervisor(employee.getIsSupervisor());
+
+        // =========================================================
+        // CATEGORY INFORMATION
+        // =========================================================
+
+        Category category = employee.getCategory();
+
+        if (category != null) {
+            dto.setCategory(category.getName());
+            dto.setCategoryId(category.getId());
+
+            dto.setAnnualLeaveDays(
+                    category.getAnnualLeaveDays() != null
+                            ? category.getAnnualLeaveDays()
+                            : 20
+            );
+
+            dto.setExcludeWeekendsFromLeave(
+                    category.getExcludeWeekendsFromLeave() != null
+                            ? category.getExcludeWeekendsFromLeave()
+                            : true
+            );
+        } else {
+            dto.setCategory(null);
+            dto.setCategoryId(null);
+            dto.setAnnualLeaveDays(20);
+
+            // Safe fallback: exclude weekends when no category exists.
+            dto.setExcludeWeekendsFromLeave(true);
+        }
+
+        // =========================================================
+        // JOB INFORMATION
+        // =========================================================
+
+        if (employee.getJob() != null) {
+            dto.setJobId(employee.getJob().getId());
+            dto.setJobName(employee.getJob().getName());
+        } else {
+            dto.setJobId(null);
+            dto.setJobName(null);
+        }
+
+        // =========================================================
+        // BANKING AND ACCOUNT INFORMATION
+        // =========================================================
+
+        dto.setAccountName(employee.getAccountName());
+        dto.setAccountNumber(employee.getAccountNumber());
+
+        dto.setBank(employee.getBank());
+        dto.setBankBranch(employee.getBankBranch());
+
+        dto.setSsnitAccountName(employee.getSsnitAccountName());
+        dto.setSsnitNumber(employee.getSsnitNumber());
+
+        dto.setTinNumber(employee.getTinNumber());
+        dto.setTagNumber(employee.getTagNumber());
+
+        dto.setTierTwoAccountName(
+                employee.getTierTwoAccountName()
+        );
+
+        dto.setTierTwoAccountNumber(
+                employee.getTierTwoAccountNumber()
+        );
+
+        dto.setBaseNumber(employee.getBaseNumber());
+
+        // =========================================================
+        // PERSONAL INFORMATION
+        // =========================================================
+
+        dto.setGhanaCard(employee.getGhanaCard());
+        dto.setEmergencyContact(employee.getEmergencyContact());
+
+        dto.setContactPerson(employee.getContactPerson());
+        dto.setRelationship(employee.getRelationship());
+
+        dto.setTownOfResidence(employee.getTownOfResidence());
+        dto.setHouseNumber(employee.getHouseNumber());
+
+        dto.setSpouse(employee.getSpouse());
+        dto.setNumberOfChildren(employee.getNumberOfChildren());
+
+        // =========================================================
+        // ALLOWANCES
+        // =========================================================
+
         dto.setRentAllowance(employee.getRentAllowance());
         dto.setTransportAllowance(employee.getTransportAllowance());
         dto.setClothingAllowance(employee.getClothingAllowance());
         dto.setOtherAllowance(employee.getOtherAllowance());
         dto.setNssAllowance(employee.getNssAllowance());
-        dto.setSsnitAccountName(employee.getSsnitAccountName());
-        dto.setAccountName(employee.getAccountName());
-        dto.setJobId(jobId);
-        dto.setJobName(jobName);
-        dto.setIsSupervisor(isSupervisor);
-        dto.setActive(employee.getActive());
-        dto.setApplyWithholdingTax(employee.getApplyWithholdingTax());
-        dto.setExcludeFromSsnit(employee.getExcludeFromSsnit());
-        dto.setTierTwoAccountName(employee.getTierTwoAccountName());
-        dto.setTierTwoAccountNumber(employee.getTierTwoAccountNumber());
-        dto.setBaseNumber(employee.getBaseNumber());
+
+        // =========================================================
+        // TAX AND SSNIT FLAGS
+        // =========================================================
+
+        dto.setApplyWithholdingTax(
+                employee.getApplyWithholdingTax() != null
+                        ? employee.getApplyWithholdingTax()
+                        : false
+        );
+
+        dto.setExcludeFromSsnit(
+                employee.getExcludeFromSsnit() != null
+                        ? employee.getExcludeFromSsnit()
+                        : false
+        );
+
         return dto;
     }
 

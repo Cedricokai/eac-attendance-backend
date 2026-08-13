@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Direct Purchase Request</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f4f6f8;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #1f2937;
+        }
+        .wrapper {
+            width: 100%;
+            padding: 24px 12px;
+            box-sizing: border-box;
+        }
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .header {
+            padding: 24px 28px;
+            color: #ffffff;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.35;
+        }
+        .header p {
+            margin: 8px 0 0;
+            opacity: 0.92;
+            font-size: 14px;
+        }
+        .content {
+            padding: 26px 28px;
+        }
+        .notice {
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 18px 0 22px;
+        }
+        .grid td {
+            padding: 9px 10px;
+            border-bottom: 1px solid #edf0f2;
+            vertical-align: top;
+            font-size: 14px;
+        }
+        .grid td:first-child {
+            width: 190px;
+            color: #6b7280;
+            font-weight: 600;
+        }
+        .items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+        }
+        .items th {
+            padding: 10px;
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #475569;
+        }
+        .items td {
+            padding: 10px;
+            border: 1px solid #e5e7eb;
+            font-size: 13px;
+        }
+        .items .number {
+            text-align: right;
+            white-space: nowrap;
+        }
+        .total {
+            margin-top: 16px;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border-radius: 8px;
+            text-align: right;
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .notes {
+            margin-top: 18px;
+            padding: 14px 16px;
+            background: #f9fafb;
+            border-left: 4px solid #94a3b8;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: pre-line;
+        }
+        .button-wrap {
+            margin-top: 24px;
+            text-align: center;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 20px;
+            background: #2563eb;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 7px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .footer {
+            padding: 18px 28px;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .muted {
+            color: #6b7280;
+        }
+        @media only screen and (max-width: 620px) {
+            .content, .header, .footer {
+                padding-left: 18px;
+                padding-right: 18px;
+            }
+            .grid td:first-child {
+                width: 130px;
+            }
+        }
+    </style>
+
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+        <div class="header" style="background:#1d4ed8;">
+            <h1>New Direct Purchase Request</h1>
+            <p>A new request requires your attention.</p>
+        </div>
+
+        <div class="content">
+
+            <div class="notice" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;">
+                <strong>Action required:</strong>
+                <span th:text="${recipientRole != null ? recipientRole : 'Accountant'}">Accountant</span>
+                review and approval is required.
+            </div>
+
+
+            <table class="grid">
+                <tr>
+                    <td>Request Number</td>
+                    <td th:text="${requestNumber != null ? requestNumber : (request != null ? request.requestNumber : 'N/A')}">N/A</td>
+                </tr>
+                <tr>
+                    <td>Request Date</td>
+                    <td th:text="${request != null && request.requestDate != null ? request.requestDate : 'N/A'}">N/A</td>
+                </tr>
+                <tr>
+                    <td>Requester</td>
+                    <td th:text="${requester != null ? requester : (request != null ? request.requester : 'N/A')}">N/A</td>
+                </tr>
+                <tr>
+                    <td>Accountant</td>
+                    <td th:text="${accountant != null ? accountant : (request != null ? request.accountant : 'N/A')}">N/A</td>
+                </tr>
+                <tr>
+                    <td>Status</td>
+                    <td th:text="${status != null ? status : (request != null && request.status != null ? request.status : 'N/A')}">N/A</td>
+                </tr>
+            </table>
+
+            <h3 style="margin:0 0 8px;font-size:16px;">Items</h3>
+
+            <table class="items">
+                <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="number">Qty</th>
+                    <th class="number">Unit Price</th>
+                    <th class="number">Total</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${items == null || #lists.isEmpty(items)}">
+                    <td colspan="4" style="text-align:center;color:#6b7280;">No items supplied</td>
+                </tr>
+                <tr th:each="item : ${items}">
+                    <td th:text="${item.description != null ? item.description : 'N/A'}">Item</td>
+                    <td class="number" th:text="${item.quantity != null ? item.quantity : 0}">0</td>
+                    <td class="number"
+                        th:text="${'GHS ' + #numbers.formatDecimal(item.unitPrice != null ? item.unitPrice : 0, 1, 'COMMA', 2, 'POINT')}">
+                        GHS 0.00
+                    </td>
+                    <td class="number"
+                        th:text="${'GHS ' + #numbers.formatDecimal(item.total != null ? item.total : 0, 1, 'COMMA', 2, 'POINT')}">
+                        GHS 0.00
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="total">
+                Total:
+                <span th:text="${'GHS ' + #numbers.formatDecimal(totalAmount != null ? totalAmount : (request != null && request.totalAmount != null ? request.totalAmount : 0), 1, 'COMMA', 2, 'POINT')}">
+          GHS 0.00
+        </span>
+            </div>
+
+
+            <div class="notes" th:if="${notes != null && !#strings.isEmpty(notes)}">
+                <strong>Request Notes</strong><br>
+                <span th:text="${notes}"></span>
+            </div>
+
+
+            <div class="button-wrap" th:if="${baseUrl != null && !#strings.isEmpty(baseUrl)}">
+                <a class="button"
+                   th:href="${baseUrl + '/DirectPurchase'}"
+                   href="#">Open Direct Purchases</a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div th:text="${companyName != null && !#strings.isEmpty(companyName) ? companyName : 'EAC System'}">
+                EAC System
+            </div>
+            <div>
+                <span th:if="${companyEmail != null}" th:text="${companyEmail}"></span>
+                <span th:if="${companyPhone != null}">
+          &nbsp;|&nbsp;<span th:text="${companyPhone}"></span>
+        </span>
+            </div>
+            <div style="margin-top:7px;">This is an automated notification. Please do not reply unless instructed.</div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -87,9 +87,77 @@ public class SystemSettings {
     private Double socialSecurityRate = 0.05;
     private Double pensionRate = 0.07;
 
+    @Column(name = "direct_purchase_accountant_recipients", columnDefinition = "TEXT")
+    private String accountantRecipients;
+
+    @Column(name = "direct_purchase_reviewer_recipients", columnDefinition = "TEXT")
+    private String reviewerRecipients;
+
+    @Column(name = "direct_purchase_finance_recipients", columnDefinition = "TEXT")
+    private String financeRecipients;
+
+    @Column(name = "direct_purchase_requester_notification_enabled")
+    private Boolean requesterNotificationEnabled = true;
+
+    @Column(name = "direct_purchase_accountant_notification_enabled")
+    private Boolean accountantNotificationEnabled = true;
+
+    @Column(name = "direct_purchase_reviewer_notification_enabled")
+    private Boolean reviewerNotificationEnabled = true;
+
+    @Column(name = "direct_purchase_finance_notification_enabled")
+    private Boolean financeNotificationEnabled = true;
+
+
+
     @Lob
     @Column(name = "employee_categories", columnDefinition = "LONGTEXT")
     private String employeeCategories;
+
+    @Column(columnDefinition = "TEXT")
+    private String inventoryRequestRecipients;
+
+    @Column(columnDefinition = "TEXT")
+    private String inventoryPlannerRecipients;
+
+    @Column(columnDefinition = "TEXT")
+    private String inventoryProcurementRecipients;
+
+    @Column(columnDefinition = "TEXT")
+    private String inventoryStoreRecipients;
+
+    @Column(columnDefinition = "TEXT")
+    private String inventoryStatusRecipients;
+
+    @Column(name = "ppe_request_recipients", columnDefinition = "TEXT")
+    private String ppeRequestRecipients;
+
+    @Column(name = "ppe_procurement_recipients", columnDefinition = "TEXT")
+    private String ppeProcurementRecipients;
+
+    @Column(name = "ppe_store_recipients", columnDefinition = "TEXT")
+    private String ppeStoreRecipients;
+
+    @Column(name = "ppe_status_recipients", columnDefinition = "TEXT")
+    private String ppeStatusRecipients;
+
+    @Column(name = "ppe_requester_notification_enabled")
+    private Boolean ppeRequesterNotificationEnabled = true;
+
+    @Column(name = "ppe_procurement_notification_enabled")
+    private Boolean ppeProcurementNotificationEnabled = true;
+
+    @Column(name = "ppe_store_notification_enabled")
+    private Boolean ppeStoreNotificationEnabled = true;
+
+    @Column(name = "ppe_status_notification_enabled")
+    private Boolean ppeStatusNotificationEnabled = true;
+
+    private Boolean inventoryRequesterNotificationEnabled = true;
+    private Boolean inventoryPlannerNotificationEnabled = true;
+    private Boolean inventoryProcurementNotificationEnabled = true;
+    private Boolean inventoryStoreNotificationEnabled = true;
+    private Boolean inventoryStatusNotificationEnabled = true;
 
     @Transient
     @JsonIgnore

@@ -46,6 +46,7 @@ public class PageAutoSeeder {
                 new PageDefinition("Biometric Feed", "/biometricAttendanceFeed", "Biometric attendance feed", "Fingerprint", false, 22, "ROLE_HR", "ROLE_ADMIN"),
                 new PageDefinition("Daily Report", "/dailyAttendanceReport", "Daily attendance report", "FileText", false, 23, "ROLE_SUPERVISOR", "ROLE_HR", "ROLE_ADMIN"),
                 new PageDefinition("Overtime", "/overtime", "Overtime management", "Clock", false, 24, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_HR", "ROLE_ADMIN"),
+                new PageDefinition("Overtime Request Entry", "/employeeOvertimeRequest", "Submit overtime requests on behalf of employees", "Clock", false, 25, "ROLE_ADMIN"),
 
                 // Leave Management
                 new PageDefinition("Leave Request Form", "/leaveRequestForm", "Submit leave request", "CalendarPlus", false, 30, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_HR", "ROLE_ADMIN"),

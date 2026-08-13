@@ -14,6 +14,6 @@ public class GeneratePayrollWithCreditsRequest {
     private List<Long> selectedCreditIds;  // IDs of credits to apply
     private Map<Long, Map<String, Double>> temporaryAllowances;
     private SettingsDTO settings;
-    private Boolean includeBasicSalary;
+    private Boolean includeBasicSalary = true;
     private Map<Long, Double> directCreditAmounts;
 }

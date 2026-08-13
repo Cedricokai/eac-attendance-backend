@@ -23,8 +23,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -37,12 +35,6 @@ public class ReportService {
     private final JobRepository jobRepository;
     private final JobAttachmentRepository jobAttachmentRepository;
     private final FileStorageService fileStorageService;
-
-    // Regex patterns for date extraction from filenames
-    private static final Pattern DATE_PATTERN_ISO = Pattern.compile("(\\d{4})-(\\d{2})-(\\d{2})");
-    private static final Pattern DATE_PATTERN_COMPACT = Pattern.compile("(\\d{4})(\\d{2})(\\d{2})");
-    private static final Pattern DATE_PATTERN_MDY = Pattern.compile("(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})");
-    private static final Pattern DATE_PATTERN_MONTH = Pattern.compile("([A-Za-z]+)[-_. ]?(\\d{1,2})[-_. ]?(\\d{4})", Pattern.CASE_INSENSITIVE);
 
     public ReportService(TimesheetRepository timesheetRepository,
                          EmployeeRepository employeeRepository,
@@ -64,14 +56,20 @@ public class ReportService {
 
         List<Timesheet> timesheets = timesheetRepository.findByEmployeeIdAndDateBetween(employeeId, startDate, endDate);
 
-        // Get attachments for this employee's job
-        Job employeeJob = employee.getJob();
-        List<JobAttachment> allAttachments = new ArrayList<>();
-        if (employeeJob != null && employeeJob.getId() != null) {
-            allAttachments = jobAttachmentRepository.findByJobId(employeeJob.getId());
-        }
+        // Include attachments for every job represented by this employee's
+        // timesheets in the selected period (not merely their current job).
+        List<Long> jobIds = timesheets.stream()
+                .map(Timesheet::getJob)
+                .filter(Objects::nonNull)
+                .map(Job::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        List<JobAttachment> allAttachments = jobIds.isEmpty()
+                ? new ArrayList<>()
+                : jobAttachmentRepository.findByJobIdIn(jobIds);
 
-        // Filter attachments by date range (parse date from filename)
+        // Filter attachments by the document date saved during upload.
         Map<LocalDate, List<JobAttachment>> attachmentsByDate = filterAttachmentsByDateRange(allAttachments, startDate, endDate);
 
         // Generate PDF with attachment summary
@@ -96,6 +94,16 @@ public class ReportService {
             allAttachments = jobAttachmentRepository.findByJobId(jobId);
         } else {
             timesheets = timesheetRepository.findByDateBetween(startDate, endDate);
+            List<Long> jobIds = timesheets.stream()
+                    .map(Timesheet::getJob)
+                    .filter(Objects::nonNull)
+                    .map(Job::getId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+            if (!jobIds.isEmpty()) {
+                allAttachments = jobAttachmentRepository.findByJobIdIn(jobIds);
+            }
         }
 
         if (jobId != null) {
@@ -115,87 +123,11 @@ public class ReportService {
                 "General_Report_" + (jobName != null ? jobName : "All_Jobs") + "_" + startDate + "_to_" + endDate);
     }
 
-    // ==================== HELPER: Extract Date from Filename ====================
-
-    private LocalDate extractDateFromFilename(String filename) {
-        if (filename == null || filename.isEmpty()) return null;
-
-        String name = filename.toLowerCase();
-
-        // Try ISO format: 2026-04-03
-        Matcher isoMatcher = DATE_PATTERN_ISO.matcher(name);
-        if (isoMatcher.find()) {
-            try {
-                return LocalDate.of(
-                        Integer.parseInt(isoMatcher.group(1)),
-                        Integer.parseInt(isoMatcher.group(2)),
-                        Integer.parseInt(isoMatcher.group(3))
-                );
-            } catch (Exception e) { /* continue */ }
-        }
-
-        // Try compact format: 20260403
-        Matcher compactMatcher = DATE_PATTERN_COMPACT.matcher(name);
-        if (compactMatcher.find()) {
-            try {
-                return LocalDate.of(
-                        Integer.parseInt(compactMatcher.group(1)),
-                        Integer.parseInt(compactMatcher.group(2)),
-                        Integer.parseInt(compactMatcher.group(3))
-                );
-            } catch (Exception e) { /* continue */ }
-        }
-
-        // Try MDY format: 04/03/2026 or 04-03-2026
-        Matcher mdyMatcher = DATE_PATTERN_MDY.matcher(name);
-        if (mdyMatcher.find()) {
-            try {
-                int month = Integer.parseInt(mdyMatcher.group(1));
-                int day = Integer.parseInt(mdyMatcher.group(2));
-                int year = Integer.parseInt(mdyMatcher.group(3));
-                if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                    return LocalDate.of(year, month, day);
-                }
-            } catch (Exception e) { /* continue */ }
-        }
-
-        // Try month name format: april_3_2026
-        Matcher monthMatcher = DATE_PATTERN_MONTH.matcher(name);
-        if (monthMatcher.find()) {
-            try {
-                String monthStr = monthMatcher.group(1);
-                int day = Integer.parseInt(monthMatcher.group(2));
-                int year = Integer.parseInt(monthMatcher.group(3));
-
-                Map<String, Integer> monthMap = new HashMap<>();
-                monthMap.put("january", 1);
-                monthMap.put("february", 2);
-                monthMap.put("march", 3);
-                monthMap.put("april", 4);
-                monthMap.put("may", 5);
-                monthMap.put("june", 6);
-                monthMap.put("july", 7);
-                monthMap.put("august", 8);
-                monthMap.put("september", 9);
-                monthMap.put("october", 10);
-                monthMap.put("november", 11);
-                monthMap.put("december", 12);
-
-                Integer month = monthMap.get(monthStr.toLowerCase());
-                if (month != null && day >= 1 && day <= 31) {
-                    return LocalDate.of(year, month, day);
-                }
-            } catch (Exception e) { /* continue */ }
-        }
-
-        return null;
-    }
-
     private Map<LocalDate, List<JobAttachment>> filterAttachmentsByDateRange(List<JobAttachment> attachments, LocalDate startDate, LocalDate endDate) {
         Map<LocalDate, List<JobAttachment>> result = new HashMap<>();
 
         for (JobAttachment attachment : attachments) {
-            LocalDate attachmentDate = extractDateFromFilename(attachment.getFileName());
+            LocalDate attachmentDate = attachment.getDocumentDate();
             if (attachmentDate != null && !attachmentDate.isBefore(startDate) && !attachmentDate.isAfter(endDate)) {
                 result.computeIfAbsent(attachmentDate, k -> new ArrayList<>()).add(attachment);
             }
@@ -217,6 +149,7 @@ public class ReportService {
     private byte[] createZipPackage(byte[] pdfBytes, Map<LocalDate, List<JobAttachment>> attachmentsByDate, String baseName) throws Exception {
         ByteArrayOutputStream zipOut = new ByteArrayOutputStream();
         ZipOutputStream zos = new ZipOutputStream(zipOut);
+        Set<String> zipEntryNames = new HashSet<>();
 
         // Add PDF report
         ZipEntry pdfEntry = new ZipEntry(baseName + ".pdf");
@@ -233,8 +166,11 @@ public class ReportService {
                     Resource fileResource = fileStorageService.loadFileAsResource(attachment.getFilePath());
                     if (fileResource.exists() && fileResource.isReadable()) {
                         String folderName = date.toString();
-                        String fileName = attachment.getFileName();
-                        ZipEntry fileEntry = new ZipEntry("attachments/" + folderName + "/" + fileName);
+                        String fileName = uniqueZipEntryName(
+                                zipEntryNames,
+                                "attachments/" + folderName + "/" + date + "_" + sanitizeFileName(attachment.getFileName())
+                        );
+                        ZipEntry fileEntry = new ZipEntry(fileName);
                         zos.putNextEntry(fileEntry);
 
                         try (InputStream is = fileResource.getInputStream()) {
@@ -256,6 +192,23 @@ public class ReportService {
         zos.close();
         System.out.println("ZIP created with PDF + " + totalAttachments + " attachments");
         return zipOut.toByteArray();
+    }
+
+    private String uniqueZipEntryName(Set<String> zipEntryNames, String requestedName) {
+        String candidate = requestedName;
+        int dot = requestedName.lastIndexOf('.');
+        String base = dot > requestedName.lastIndexOf('/') ? requestedName.substring(0, dot) : requestedName;
+        String extension = dot > requestedName.lastIndexOf('/') ? requestedName.substring(dot) : "";
+        int suffix = 2;
+        while (!zipEntryNames.add(candidate)) {
+            candidate = base + "_" + suffix++ + extension;
+        }
+        return candidate;
+    }
+
+    private String sanitizeFileName(String fileName) {
+        String safe = fileName == null || fileName.isBlank() ? "attachment" : fileName;
+        return safe.replace("\\", "_").replace("/", "_");
     }
 
     // ==================== ADD ATTACHMENT SUMMARY TABLE TO PDF ====================

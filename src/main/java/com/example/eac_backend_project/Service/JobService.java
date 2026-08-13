@@ -71,11 +71,11 @@ public class JobService {
     @Autowired
     private  JobAttachmentRepository jobAttachmentRepository;
 
-    @Value("${app.frontend.base-url:http://localhost:5173}")
-    private String frontendBaseUrl;
+    @Autowired
+    private FrontendUrlService frontendUrlService;
 
     private String getFrontendBaseUrl() {
-        return "http://localhost:5173";
+        return frontendUrlService.getBaseUrl() + "/#";
     }
 
     private static final String UPLOAD_DIR = "uploads/jobs/";

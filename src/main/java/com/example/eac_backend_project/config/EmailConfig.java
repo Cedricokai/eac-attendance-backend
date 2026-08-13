@@ -1,11 +1,13 @@
 package com.example.eac_backend_project.config;
 
+import com.example.eac_backend_project.Service.FrontendUrlService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
@@ -14,10 +16,26 @@ import org.thymeleaf.templateresolver.ITemplateResolver;
 import org.thymeleaf.templateresolver.StringTemplateResolver;
 
 import java.util.Properties;
+import java.util.concurrent.Executor;
 
 @Configuration
 @EnableAsync
 public class EmailConfig {
+
+    @Bean(name = "taskExecutor")
+    public Executor taskExecutor(FrontendUrlService frontendUrlService) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("eac-async-");
+        executor.setTaskDecorator(task -> {
+            String capturedBaseUrl = frontendUrlService.getBaseUrl();
+            return frontendUrlService.withBaseUrl(capturedBaseUrl, task);
+        });
+        executor.initialize();
+        return executor;
+    }
 
     @Value("${spring.mail.host:smtp.gmail.com}")
     private String host;

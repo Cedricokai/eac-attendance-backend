@@ -16,6 +16,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     boolean existsByEmployeeId(String employeeId);
 
+    Optional<Employee> findByEmployeeIdIgnoreCase(String employeeId);
+
     @Override
     Optional<Employee> findById(Long id);
 
@@ -39,6 +41,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     long countByStartDate(LocalDate startDate);
     Optional<Employee> findByEmail(String email);
+    Optional<Employee> findByTagNumberIgnoreCase(String tagNumber);
 
 
     List<Employee> findByJobId(Long jobId);

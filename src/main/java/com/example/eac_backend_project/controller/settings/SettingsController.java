@@ -10,10 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/settings")
@@ -336,5 +333,387 @@ public class SettingsController {
     public ResponseEntity<Map<String, Set<Long>>> getSkipCategories() {
         Set<Long> skipCategoryIds = settingsService.getAllCategoryIdsToSkipForAutoAbsent();
         return ResponseEntity.ok(Map.of("skipCategoryIds", skipCategoryIds));
+    }
+
+    @GetMapping("/direct-purchase-notifications")
+    public ResponseEntity<?> getDirectPurchaseNotificationSettings() {
+        SystemSettings settings = settingsService.getSystemSettings();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put(
+                "accountantRecipients",
+                Objects.toString(settings.getAccountantRecipients(), "")
+        );
+        response.put(
+                "reviewerRecipients",
+                Objects.toString(settings.getReviewerRecipients(), "")
+        );
+        response.put(
+                "financeRecipients",
+                Objects.toString(settings.getFinanceRecipients(), "")
+        );
+        response.put(
+                "requesterNotificationEnabled",
+                settings.getRequesterNotificationEnabled() == null ||
+                        settings.getRequesterNotificationEnabled()
+        );
+        response.put(
+                "accountantNotificationEnabled",
+                settings.getAccountantNotificationEnabled() == null ||
+                        settings.getAccountantNotificationEnabled()
+        );
+        response.put(
+                "reviewerNotificationEnabled",
+                settings.getReviewerNotificationEnabled() == null ||
+                        settings.getReviewerNotificationEnabled()
+        );
+        response.put(
+                "financeNotificationEnabled",
+                settings.getFinanceNotificationEnabled() == null ||
+                        settings.getFinanceNotificationEnabled()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/direct-purchase-notifications")
+    public ResponseEntity<?> updateDirectPurchaseNotificationSettings(
+            @RequestBody Map<String, Object> payload
+    ) {
+        SystemSettingsDTO dto = settingsService.getSystemSettingsDTO();
+
+        dto.setAccountantRecipients(
+                Objects.toString(payload.get("accountantRecipients"), "")
+        );
+        dto.setReviewerRecipients(
+                Objects.toString(payload.get("reviewerRecipients"), "")
+        );
+        dto.setFinanceRecipients(
+                Objects.toString(payload.get("financeRecipients"), "")
+        );
+
+        dto.setRequesterNotificationEnabled(
+                asBoolean(
+                        payload.get("requesterNotificationEnabled"),
+                        true
+                )
+        );
+        dto.setAccountantNotificationEnabled(
+                asBoolean(
+                        payload.get("accountantNotificationEnabled"),
+                        true
+                )
+        );
+        dto.setReviewerNotificationEnabled(
+                asBoolean(
+                        payload.get("reviewerNotificationEnabled"),
+                        true
+                )
+        );
+        dto.setFinanceNotificationEnabled(
+                asBoolean(
+                        payload.get("financeNotificationEnabled"),
+                        true
+                )
+        );
+
+        settingsService.updateSystemSettings(dto);
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "Direct Purchase notification settings updated"
+                )
+        );
+    }
+
+    private boolean asBoolean(Object value, boolean fallback) {
+        if (value == null) return fallback;
+        if (value instanceof Boolean bool) return bool;
+        return Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    @GetMapping("/inventory-notifications")
+    public ResponseEntity<?> getInventoryNotificationSettings() {
+        try {
+            SystemSettings settings = settingsService.getSystemSettings();
+
+            Map<String, Object> response = new HashMap<>();
+
+            // =====================================================
+            // NORMAL INVENTORY RECIPIENTS
+            // =====================================================
+            response.put(
+                    "inventoryRequestRecipients",
+                    Objects.toString(settings.getInventoryRequestRecipients(), "")
+            );
+            response.put(
+                    "inventoryPlannerRecipients",
+                    Objects.toString(settings.getInventoryPlannerRecipients(), "")
+            );
+            response.put(
+                    "inventoryProcurementRecipients",
+                    Objects.toString(settings.getInventoryProcurementRecipients(), "")
+            );
+            response.put(
+                    "inventoryStoreRecipients",
+                    Objects.toString(settings.getInventoryStoreRecipients(), "")
+            );
+            response.put(
+                    "inventoryStatusRecipients",
+                    Objects.toString(settings.getInventoryStatusRecipients(), "")
+            );
+
+            // =====================================================
+            // NORMAL INVENTORY TOGGLES
+            // =====================================================
+            response.put(
+                    "inventoryRequesterNotificationEnabled",
+                    settings.getInventoryRequesterNotificationEnabled() == null
+                            || settings.getInventoryRequesterNotificationEnabled()
+            );
+            response.put(
+                    "inventoryPlannerNotificationEnabled",
+                    settings.getInventoryPlannerNotificationEnabled() == null
+                            || settings.getInventoryPlannerNotificationEnabled()
+            );
+            response.put(
+                    "inventoryProcurementNotificationEnabled",
+                    settings.getInventoryProcurementNotificationEnabled() == null
+                            || settings.getInventoryProcurementNotificationEnabled()
+            );
+            response.put(
+                    "inventoryStoreNotificationEnabled",
+                    settings.getInventoryStoreNotificationEnabled() == null
+                            || settings.getInventoryStoreNotificationEnabled()
+            );
+            response.put(
+                    "inventoryStatusNotificationEnabled",
+                    settings.getInventoryStatusNotificationEnabled() == null
+                            || settings.getInventoryStatusNotificationEnabled()
+            );
+
+            // =====================================================
+            // PPE RECIPIENTS
+            // =====================================================
+            response.put(
+                    "ppeRequestRecipients",
+                    Objects.toString(settings.getPpeRequestRecipients(), "")
+            );
+            response.put(
+                    "ppeProcurementRecipients",
+                    Objects.toString(settings.getPpeProcurementRecipients(), "")
+            );
+            response.put(
+                    "ppeStoreRecipients",
+                    Objects.toString(settings.getPpeStoreRecipients(), "")
+            );
+            response.put(
+                    "ppeStatusRecipients",
+                    Objects.toString(settings.getPpeStatusRecipients(), "")
+            );
+
+            // =====================================================
+            // PPE TOGGLES
+            // =====================================================
+            response.put(
+                    "ppeRequesterNotificationEnabled",
+                    settings.getPpeRequesterNotificationEnabled() == null
+                            || settings.getPpeRequesterNotificationEnabled()
+            );
+            response.put(
+                    "ppeProcurementNotificationEnabled",
+                    settings.getPpeProcurementNotificationEnabled() == null
+                            || settings.getPpeProcurementNotificationEnabled()
+            );
+            response.put(
+                    "ppeStoreNotificationEnabled",
+                    settings.getPpeStoreNotificationEnabled() == null
+                            || settings.getPpeStoreNotificationEnabled()
+            );
+            response.put(
+                    "ppeStatusNotificationEnabled",
+                    settings.getPpeStatusNotificationEnabled() == null
+                            || settings.getPpeStatusNotificationEnabled()
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("error", e.getMessage())
+            );
+        }
+    }
+
+    @PutMapping("/inventory-notifications")
+    public ResponseEntity<?> updateInventoryNotificationSettings(
+            @RequestBody Map<String, Object> payload
+    ) {
+        try {
+            SystemSettingsDTO dto = settingsService.getSystemSettingsDTO();
+
+            // =====================================================
+            // NORMAL INVENTORY RECIPIENTS
+            // =====================================================
+            dto.setInventoryRequestRecipients(
+                    Objects.toString(
+                            payload.get("inventoryRequestRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setInventoryPlannerRecipients(
+                    Objects.toString(
+                            payload.get("inventoryPlannerRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setInventoryProcurementRecipients(
+                    Objects.toString(
+                            payload.get("inventoryProcurementRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setInventoryStoreRecipients(
+                    Objects.toString(
+                            payload.get("inventoryStoreRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setInventoryStatusRecipients(
+                    Objects.toString(
+                            payload.get("inventoryStatusRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            // =====================================================
+            // NORMAL INVENTORY TOGGLES
+            // =====================================================
+            dto.setInventoryRequesterNotificationEnabled(
+                    asBoolean(
+                            payload.get("inventoryRequesterNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setInventoryPlannerNotificationEnabled(
+                    asBoolean(
+                            payload.get("inventoryPlannerNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setInventoryProcurementNotificationEnabled(
+                    asBoolean(
+                            payload.get("inventoryProcurementNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setInventoryStoreNotificationEnabled(
+                    asBoolean(
+                            payload.get("inventoryStoreNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setInventoryStatusNotificationEnabled(
+                    asBoolean(
+                            payload.get("inventoryStatusNotificationEnabled"),
+                            true
+                    )
+            );
+
+            // =====================================================
+            // PPE RECIPIENTS
+            // =====================================================
+            dto.setPpeRequestRecipients(
+                    Objects.toString(
+                            payload.get("ppeRequestRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setPpeProcurementRecipients(
+                    Objects.toString(
+                            payload.get("ppeProcurementRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setPpeStoreRecipients(
+                    Objects.toString(
+                            payload.get("ppeStoreRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            dto.setPpeStatusRecipients(
+                    Objects.toString(
+                            payload.get("ppeStatusRecipients"),
+                            ""
+                    ).trim()
+            );
+
+            // =====================================================
+            // PPE TOGGLES
+            // =====================================================
+            dto.setPpeRequesterNotificationEnabled(
+                    asBoolean(
+                            payload.get("ppeRequesterNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setPpeProcurementNotificationEnabled(
+                    asBoolean(
+                            payload.get("ppeProcurementNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setPpeStoreNotificationEnabled(
+                    asBoolean(
+                            payload.get("ppeStoreNotificationEnabled"),
+                            true
+                    )
+            );
+
+            dto.setPpeStatusNotificationEnabled(
+                    asBoolean(
+                            payload.get("ppeStatusNotificationEnabled"),
+                            true
+                    )
+            );
+
+            SystemSettings updatedSettings =
+                    settingsService.updateSystemSettings(dto);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put(
+                    "message",
+                    "Inventory and PPE notification settings updated successfully"
+            );
+            response.put("settings", updatedSettings);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.badRequest().body(
+                    Map.of(
+                            "error",
+                            e.getMessage() != null
+                                    ? e.getMessage()
+                                    : "Failed to update notification settings"
+                    )
+            );
+        }
     }
 }

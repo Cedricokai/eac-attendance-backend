@@ -1,10 +1,13 @@
+
 package com.example.eac_backend_project.controller;
 
 import com.example.eac_backend_project.Service.AttendanceService;
 import com.example.eac_backend_project.Service.EmployeeNameMatchingService;
+import com.example.eac_backend_project.Service.RawBiometricEventService;
 import com.example.eac_backend_project.dto.BiometricRecordDTO;
 import com.example.eac_backend_project.entity.attendance.Attendance;
 import com.example.eac_backend_project.entity.attendance.Employee;
+import com.example.eac_backend_project.entity.attendance.RawBiometricEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
@@ -21,8 +24,10 @@ import java.util.concurrent.*;
 public class MobileAttendanceController {
 
     private final AttendanceService attendanceService;
+
     private final EmployeeNameMatchingService nameMatchingService;
     private final ObjectMapper objectMapper;
+    private final RawBiometricEventService rawBiometricEventService;
 
     // Store recent biometric attempts (in-memory cache)
     private final Map<String, Map<String, Object>> recentAttempts = Collections.synchronizedMap(
@@ -49,10 +54,12 @@ public class MobileAttendanceController {
 
     public MobileAttendanceController(AttendanceService attendanceService,
                                       EmployeeNameMatchingService nameMatchingService,
-                                      ObjectMapper objectMapper) {
+                                      ObjectMapper objectMapper,
+                                      RawBiometricEventService rawBiometricEventService) {
         this.attendanceService = attendanceService;
         this.nameMatchingService = nameMatchingService;
         this.objectMapper = objectMapper;
+        this.rawBiometricEventService = rawBiometricEventService;
     }
 
     @PostConstruct
@@ -66,7 +73,7 @@ public class MobileAttendanceController {
             }
         }, 30, 30, TimeUnit.MINUTES);
 
-        System.out.println("✅ MobileAttendanceController initialized with duplicate detection and auto-blocking");
+        System.out.println("âœ… MobileAttendanceController initialized with duplicate detection and auto-blocking");
     }
 
     /**
@@ -110,7 +117,7 @@ public class MobileAttendanceController {
         if (lastProcessed != null) {
             long timeSinceLast = System.currentTimeMillis() - lastProcessed;
             if (timeSinceLast < DUPLICATE_WINDOW_MS) {
-                System.out.println("⚠️ DUPLICATE DETECTED - Record processed " + timeSinceLast/1000 + " seconds ago");
+                System.out.println("âš ï¸ DUPLICATE DETECTED - Record processed " + timeSinceLast/1000 + " seconds ago");
                 return true;
             }
         }
@@ -125,7 +132,7 @@ public class MobileAttendanceController {
             blockedUserIds.add(userId);
             // Store when they were blocked for auto-unblock
             processedRecordCache.put("block_time_" + userId, System.currentTimeMillis());
-            System.out.println("🚫 User blocked: " + userId + " - " + reason);
+            System.out.println("ðŸš« User blocked: " + userId + " - " + reason);
         }
     }
 
@@ -143,10 +150,10 @@ public class MobileAttendanceController {
                     // Auto-unblock after duration
                     blockedUserIds.remove(userIdStr);
                     processedRecordCache.remove("block_time_" + userIdStr);
-                    System.out.println("✅ User auto-unblocked after timeout: " + userIdStr);
+                    System.out.println("âœ… User auto-unblocked after timeout: " + userIdStr);
                     return false;
                 }
-                System.out.println("🚫 BLOCKED: User " + userId + " is blocked");
+                System.out.println("ðŸš« BLOCKED: User " + userId + " is blocked");
                 return true;
             }
         }
@@ -179,7 +186,7 @@ public class MobileAttendanceController {
             return lastAttempt != null && (now - lastAttempt) > 3600000;
         });
 
-        System.out.println("🧹 Cache cleanup completed - Removed " +
+        System.out.println("ðŸ§¹ Cache cleanup completed - Removed " +
                 (beforeSize - processedRecordCache.size()) + " processed entries, " +
                 (beforeFailedSize - failedAttemptCounts.size()) + " failed attempts");
     }
@@ -187,6 +194,7 @@ public class MobileAttendanceController {
     @PostMapping("/UPLOAD_RECORD_NOW")
     public ResponseEntity<Map<String, Object>> receiveBiometricAttendance(
             @RequestBody Map<String, Object> payload) {
+        RawBiometricEvent rawEvent = rawBiometricEventService.captureOnePass(payload);
 
         // Generate unique ID for this attempt
         String attemptId = String.valueOf(System.currentTimeMillis());
@@ -195,7 +203,7 @@ public class MobileAttendanceController {
 
         // Check if user is blocked
         if (isUserBlocked(payload)) {
-            System.out.println("🚫 REQUEST REJECTED: User is blocked - Returning 200 to stop device retries");
+            System.out.println("ðŸš« REQUEST REJECTED: User is blocked - Returning 200 to stop device retries");
             // Return 200 to stop device from retrying, but with a "blocked" message
             return ResponseEntity.ok(Map.of(
                     "result", "blocked",
@@ -214,7 +222,7 @@ public class MobileAttendanceController {
 
         // Check for duplicate within time window
         if (isDuplicateRecord(fingerprint)) {
-            System.out.println("⚠️ DUPLICATE REQUEST REJECTED - User: " + employeeName +
+            System.out.println("âš ï¸ DUPLICATE REQUEST REJECTED - User: " + employeeName +
                     ", Time: " + timeStr + ", UserId: " + userId);
 
             // Return 200 to stop device from retrying, but indicate it was skipped
@@ -241,7 +249,7 @@ public class MobileAttendanceController {
                 // Store the time of this failed attempt
                 processedRecordCache.put("fail_time_" + failKey, System.currentTimeMillis());
 
-                System.out.println("❌ Failed attempt " + failCount + "/" + MAX_FAILED_ATTEMPTS +
+                System.out.println("âŒ Failed attempt " + failCount + "/" + MAX_FAILED_ATTEMPTS +
                         " for user: " + failKey + " (" + employeeName + ")");
 
                 // Auto-block after max failed attempts
@@ -267,34 +275,34 @@ public class MobileAttendanceController {
         try {
             // ========== COMPREHENSIVE LOGGING ==========
             System.out.println("\n" + "=".repeat(80));
-            System.out.println("📱 BIOMETRIC DEVICE REQUEST RECEIVED");
+            System.out.println("ðŸ“± BIOMETRIC DEVICE REQUEST RECEIVED");
             System.out.println("=".repeat(80));
 
             // Log timestamp
-            System.out.println("⏰ Server Time: " + LocalDateTime.now());
+            System.out.println("â° Server Time: " + LocalDateTime.now());
 
             // Log all top-level fields in the payload
-            System.out.println("\n📦 PAYLOAD CONTENTS:");
+            System.out.println("\nðŸ“¦ PAYLOAD CONTENTS:");
             System.out.println("-".repeat(40));
             for (Map.Entry<String, Object> entry : payload.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
 
                 if (value instanceof Map) {
-                    System.out.println("  🔹 " + key + " (Map):");
+                    System.out.println("  ðŸ”¹ " + key + " (Map):");
                     Map<?, ?> mapValue = (Map<?, ?>) value;
                     for (Map.Entry<?, ?> mapEntry : mapValue.entrySet()) {
                         System.out.println("      - " + mapEntry.getKey() + ": " + mapEntry.getValue());
                     }
                 } else if (value instanceof List) {
-                    System.out.println("  🔹 " + key + " (List): " + value);
+                    System.out.println("  ðŸ”¹ " + key + " (List): " + value);
                 } else {
-                    System.out.println("  🔹 " + key + ": " + value);
+                    System.out.println("  ðŸ”¹ " + key + ": " + value);
                 }
             }
 
             // Extract and log employee name specifically
-            System.out.println("\n👤 EMPLOYEE INFORMATION:");
+            System.out.println("\nðŸ‘¤ EMPLOYEE INFORMATION:");
             System.out.println("-".repeat(40));
             System.out.println("  Extracted name from device: '" + employeeName + "'");
 
@@ -321,7 +329,7 @@ public class MobileAttendanceController {
             }
 
             // Log timestamp and signOn
-            System.out.println("\n⏱️ TIME INFORMATION:");
+            System.out.println("\nâ±ï¸ TIME INFORMATION:");
             System.out.println("-".repeat(40));
             Boolean isSignOn = (Boolean) payload.get("signOn");
             String signType = (String) payload.get("signType");
@@ -344,7 +352,7 @@ public class MobileAttendanceController {
                 attemptRecord.put("errorMessage", "Could not extract employee name from device data");
                 storeRecentAttempt(attemptId, attemptRecord);
 
-                System.out.println("\n❌ ERROR: Could not extract employee name");
+                System.out.println("\nâŒ ERROR: Could not extract employee name");
                 return ResponseEntity.badRequest().body(Map.of(
                         "result", "error",
                         "code", 400,
@@ -357,7 +365,7 @@ public class MobileAttendanceController {
                 attemptRecord.put("errorMessage", "Missing timestamp in device data");
                 storeRecentAttempt(attemptId, attemptRecord);
 
-                System.out.println("\n❌ ERROR: Missing timestamp");
+                System.out.println("\nâŒ ERROR: Missing timestamp");
                 return ResponseEntity.badRequest().body(Map.of(
                         "result", "error",
                         "code", 400,
@@ -366,16 +374,16 @@ public class MobileAttendanceController {
             }
 
             // Try to find employee (we already did this above, but let's do it again for the flow)
-            System.out.println("\n🔍 DATABASE LOOKUP:");
+            System.out.println("\nðŸ” DATABASE LOOKUP:");
             System.out.println("-".repeat(40));
 
             if (!employeeOpt.isPresent()) {
                 // Get list of similar names for suggestion
                 List<String> similarNames = nameMatchingService.findSimilarEmployeeNames(employeeName);
 
-                System.out.println("  ❌ No employee found with name: '" + employeeName + "'");
+                System.out.println("  âŒ No employee found with name: '" + employeeName + "'");
                 if (!similarNames.isEmpty()) {
-                    System.out.println("  💡 Did you mean: " + String.join(", ", similarNames));
+                    System.out.println("  ðŸ’¡ Did you mean: " + String.join(", ", similarNames));
                 }
 
                 attemptRecord.put("status", "error");
@@ -392,7 +400,7 @@ public class MobileAttendanceController {
             }
 
             Employee employee = employeeOpt.get();
-            System.out.println("  ✅ Found employee in database:");
+            System.out.println("  âœ… Found employee in database:");
             System.out.println("     ID: " + employee.getId());
             System.out.println("     Name: " + employee.getFirstName() + " " + employee.getLastName());
             System.out.println("     Email: " + employee.getEmail());
@@ -406,7 +414,7 @@ public class MobileAttendanceController {
                 if (userId != null && blockedUserIds.contains(userId.toString())) {
                     blockedUserIds.remove(userId.toString());
                     processedRecordCache.remove("block_time_" + userId.toString());
-                    System.out.println("✅ User auto-unblocked after successful authentication: " + userId);
+                    System.out.println("âœ… User auto-unblocked after successful authentication: " + userId);
                 }
             }
 
@@ -443,7 +451,11 @@ public class MobileAttendanceController {
 
             List<Attendance> saved = attendanceService.processBiometricRecords(records);
 
-            System.out.println("\n✅ RECORD PROCESSED SUCCESSFULLY");
+            if (!saved.isEmpty()) {
+                rawBiometricEventService.processed(rawEvent, saved.get(0));
+            }
+
+            System.out.println("\nâœ… RECORD PROCESSED SUCCESSFULLY");
             System.out.println("   Saved attendance records: " + saved.size());
 
             // Store successful attempt
@@ -464,7 +476,8 @@ public class MobileAttendanceController {
             ));
 
         } catch (Exception e) {
-            System.err.println("\n❌ ERROR PROCESSING BIOMETRIC RECORD:");
+            rawBiometricEventService.failed(rawEvent, e);
+            System.err.println("\nâŒ ERROR PROCESSING BIOMETRIC RECORD:");
             System.err.println("   " + e.getMessage());
             e.printStackTrace();
 
@@ -487,7 +500,7 @@ public class MobileAttendanceController {
                     storeRecentAttempt(attemptId, errorRecord);
                 }
             } catch (Exception storeError) {
-                System.err.println("⚠️ Could not store error record: " + storeError.getMessage());
+                System.err.println("âš ï¸ Could not store error record: " + storeError.getMessage());
             }
 
             System.out.println("=".repeat(80) + "\n");
@@ -565,19 +578,19 @@ public class MobileAttendanceController {
     // Store recent attempt in memory with proper null checks
     private void storeRecentAttempt(String id, Map<String, Object> attempt) {
         if (id == null || id.trim().isEmpty()) {
-            System.err.println("⚠️ Cannot store attempt: id is null or empty");
+            System.err.println("âš ï¸ Cannot store attempt: id is null or empty");
             return;
         }
 
         if (attempt == null) {
-            System.err.println("⚠️ Cannot store attempt for id " + id + ": attempt record is null");
+            System.err.println("âš ï¸ Cannot store attempt for id " + id + ": attempt record is null");
             return;
         }
 
         try {
             recentAttempts.put(id, attempt);
         } catch (Exception e) {
-            System.err.println("❌ Error storing recent attempt: " + e.getMessage());
+            System.err.println("âŒ Error storing recent attempt: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -608,7 +621,7 @@ public class MobileAttendanceController {
 
         try {
             System.out.println("\n" + "=".repeat(80));
-            System.out.println("🔄 RETRY BIOMETRIC ATTEMPT REQUEST RECEIVED");
+            System.out.println("ðŸ”„ RETRY BIOMETRIC ATTEMPT REQUEST RECEIVED");
             System.out.println("=".repeat(80));
 
             String selectedEmployeeName = (String) retryPayload.get("selectedEmployeeName");
@@ -640,7 +653,7 @@ public class MobileAttendanceController {
             Optional<Employee> employeeOpt = nameMatchingService.findEmployeeByDeviceName(selectedEmployeeName);
 
             if (!employeeOpt.isPresent()) {
-                System.out.println("❌ Employee not found: " + selectedEmployeeName);
+                System.out.println("âŒ Employee not found: " + selectedEmployeeName);
                 return ResponseEntity.status(404).body(Map.of(
                         "success", false,
                         "message", "Employee not found: " + selectedEmployeeName
@@ -648,11 +661,11 @@ public class MobileAttendanceController {
             }
 
             Employee employee = employeeOpt.get();
-            System.out.println("✅ Found employee: " + employee.getFirstName() + " " + employee.getLastName());
+            System.out.println("âœ… Found employee: " + employee.getFirstName() + " " + employee.getLastName());
 
             // Check if employee is active
             if (employee.getActive() == null || !employee.getActive()) {
-                System.out.println("❌ Employee is inactive");
+                System.out.println("âŒ Employee is inactive");
                 return ResponseEntity.status(403).body(Map.of(
                         "success", false,
                         "message", "Employee is inactive in the system"
@@ -702,7 +715,7 @@ public class MobileAttendanceController {
             retryRecord.put("recordsCreated", saved.size());
             storeRecentAttempt(retryId, retryRecord);
 
-            System.out.println("✅ RETRY SUCCESSFUL - Saved " + saved.size() + " records");
+            System.out.println("âœ… RETRY SUCCESSFUL - Saved " + saved.size() + " records");
             System.out.println("=".repeat(80) + "\n");
 
             return ResponseEntity.ok(Map.of(
@@ -714,7 +727,7 @@ public class MobileAttendanceController {
             ));
 
         } catch (Exception e) {
-            System.err.println("\n❌ Retry failed: " + e.getMessage());
+            System.err.println("\nâŒ Retry failed: " + e.getMessage());
             e.printStackTrace();
 
             // Store error retry record
@@ -766,7 +779,7 @@ public class MobileAttendanceController {
             boolean removed = blockedUserIds.remove(userId);
             if (removed) {
                 processedRecordCache.remove("block_time_" + userId);
-                System.out.println("✅ User unblocked by admin: " + userId);
+                System.out.println("âœ… User unblocked by admin: " + userId);
                 return ResponseEntity.ok(Map.of(
                         "success", true,
                         "message", "User unblocked successfully"

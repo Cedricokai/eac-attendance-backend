@@ -184,7 +184,8 @@ public class PayrollService {
             logger.info("Added direct credits from request in generatePayrollWithCredits: {}", request.getDirectCreditAmounts().size());
         }
 
-        boolean includeBasicSalary = Boolean.TRUE.equals(request.getIncludeBasicSalary());
+        boolean includeBasicSalary = request.getIncludeBasicSalary() == null
+                || request.getIncludeBasicSalary();
         Map<Long, Map<String, Double>> tempAllowances = request.getTemporaryAllowances();
         SettingsDTO settings = request.getSettings();
 
@@ -322,8 +323,19 @@ public class PayrollService {
             });
         }
 
+        // Temporary allowances can be the sole source of pay for an employee.
+        // Include active employees selected here even if they have no attendance,
+        // approved overtime, or leave in this payroll period.
+        if (tempAllowances != null) {
+            tempAllowances.keySet().forEach(empId ->
+                    employeeRepository.findByIdAndActiveTrue(empId)
+                            .filter(employee -> employee.getCategory() != null
+                                    && Objects.equals(employee.getCategory().getName(), periodCategory))
+                            .ifPresent(employee -> employeeIds.add(empId)));
+        }
+
         if (employeeIds.isEmpty()) {
-            throw new IllegalStateException("No active employees with attendance, approved overtime, or leave records found for the period in category: " + periodCategory);
+            throw new IllegalStateException("No active employees with attendance, approved overtime, leave, or temporary allowances found for the period in category: " + periodCategory);
         }
 
         Map<Long, Object[]> attendanceMap = (attendanceSummaries == null) ? Collections.emptyMap()
@@ -476,6 +488,7 @@ public class PayrollService {
                 }
 
                 record.setStatus("Generated");
+                record.setIncludeBasicSalary(includeBasicSalary);
                 record.setWorkingDays(actualWorkingDays);
                 record.setTotalHours(actualTotalHours);
                 record.setOvertimeHours(approvedOvertimeHours);
@@ -1164,13 +1177,18 @@ public class PayrollService {
         if (tempAllowances != null && tempAllowances.containsKey(employee.getId())) {
             Map<String, Double> empTemp = tempAllowances.get(employee.getId());
 
-            rentAllowance = empTemp.getOrDefault("housingAllowance", rentAllowance);
-            transportAllowance = empTemp.getOrDefault("tntAllowance", transportAllowance);
-            clothingAllowance = empTemp.getOrDefault("clothsAllowances", clothingAllowance);
-            otherAllowance = empTemp.getOrDefault("otherAllowances", otherAllowance);
-            nssAllowance = empTemp.getOrDefault("nssAllowance", nssAllowance);
+            if (empTemp != null) {
+                if (empTemp.get("housingAllowance") != null) rentAllowance = empTemp.get("housingAllowance");
+                if (empTemp.get("tntAllowance") != null) transportAllowance = empTemp.get("tntAllowance");
+                if (empTemp.get("clothsAllowances") != null) clothingAllowance = empTemp.get("clothsAllowances");
+                if (empTemp.get("otherAllowances") != null) otherAllowance = empTemp.get("otherAllowances");
+                if (empTemp.get("nssAllowance") != null) nssAllowance = empTemp.get("nssAllowance");
 
-            hasTemporaryAllowances = true;
+                hasTemporaryAllowances = empTemp.keySet().stream().anyMatch(key ->
+                        key.equals("housingAllowance") || key.equals("tntAllowance")
+                                || key.equals("clothsAllowances") || key.equals("otherAllowances")
+                                || key.equals("nssAllowance"));
+            }
 
             logger.info("Using temporary allowances for employee {}: Housing={}, Transport={}, Clothing={}, Other={}, NSS={}",
                     employee.getId(), rentAllowance, transportAllowance, clothingAllowance, otherAllowance, nssAllowance);
@@ -1430,6 +1448,58 @@ public class PayrollService {
         }
 
         logger.info("Payroll recalculation completed for period ID: {}", periodId);
+    }
+
+    @Transactional
+    public PayrollRecord removeTemporaryAllowances(Long periodId, Long employeeId) {
+        PayrollRecord record = payrollRecordRepository.findByPeriodIdAndEmployeeId(periodId, employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No payroll record found for employee " + employeeId + " in period " + periodId));
+
+        if ("Processed".equalsIgnoreCase(record.getStatus())) {
+            throw new IllegalStateException("Temporary allowances cannot be removed from processed payroll");
+        }
+
+        Employee employee = record.getEmployee();
+        PayrollPeriod period = record.getPeriod();
+        SystemSettings systemSettings = settingsService.getSystemSettings();
+
+        double loanDeduction = record.getLoanDeduction() != null ? record.getLoanDeduction() : 0.0;
+        double creditAmount = record.getCreditAmount() != null ? record.getCreditAmount() : 0.0;
+        double leaveHours = record.getLeaveHours() != null ? record.getLeaveHours() : 0.0;
+        double totalHours = record.getTotalHours() != null ? record.getTotalHours() : 0.0;
+        double normalHours = Math.max(0.0, totalHours - leaveHours);
+
+        setAllowances(record, employee, null);
+
+        ghanaPayrollCalculator.calculatePayrollWithMultipliers(
+                employee,
+                period.getStartDate(),
+                period.getEndDate(),
+                normalHours,
+                record.getWorkingDays(),
+                record.getOvertimeHours() != null ? record.getOvertimeHours() : 0.0,
+                record.getLeaveDays() != null ? record.getLeaveDays() : 0,
+                leaveHours,
+                record.getHolidayHours() != null ? record.getHolidayHours() : 0.0,
+                record.getWeekendHours() != null ? record.getWeekendHours() : 0.0,
+                record.getMultiplierBonus() != null ? record.getMultiplierBonus() : 0.0,
+                getDefaultSettings(),
+                true,
+                record,
+                systemSettings,
+                record.getOvertimePay() != null ? record.getOvertimePay() : 0.0,
+                creditAmount,
+                employee.getExcludeFromSsnit()
+        );
+
+        if (loanDeduction > 0) {
+            record.setNetSalary(record.getNetSalary() - loanDeduction);
+            record.setLoanDeduction(loanDeduction);
+        }
+        record.setUsesTemporaryAllowances(false);
+        record.setIncludeBasicSalary(true);
+        return payrollRecordRepository.save(record);
     }
 
     @Transactional

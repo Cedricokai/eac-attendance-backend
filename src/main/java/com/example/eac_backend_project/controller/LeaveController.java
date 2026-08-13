@@ -6,8 +6,10 @@ import com.example.eac_backend_project.Service.email.EmailNotificationService;
 import com.example.eac_backend_project.dto.EmployeeLeaveBalanceDTO;
 import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.Leave;
+import com.example.eac_backend_project.entity.inventory.User;
 import com.example.eac_backend_project.repository.EmployeeRepository;
 import com.example.eac_backend_project.repository.LeaveRepository;
+import com.example.eac_backend_project.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +49,9 @@ public class LeaveController {
     @Autowired
     private EmployeeRepository employeeRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @GetMapping("/test")
     public ResponseEntity<String> testEndpoint() {
         logger.info("Test endpoint hit successfully");
@@ -63,6 +68,33 @@ public class LeaveController {
         } catch (Exception e) {
             logger.error("Error fetching all leaves: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/my-requests")
+    public ResponseEntity<?> getMyLeaveRequests() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String username = authentication.getName();
+
+            // Get user by username
+            User user = userRepository.findByUserName(username)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found: " + username));
+
+            String email = user.getEmail();
+
+            // Find employee by email
+            Employee employee = employeeRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee not found for email: " + email));
+
+            List<Leave> myRequests = leaveService.getLeavesByEmployeeId(employee.getId());
+            logger.info("Found {} leave requests for employee: {}", myRequests.size(), employee.getEmployeeId());
+
+            return ResponseEntity.ok(myRequests);
+        } catch (Exception e) {
+            logger.error("Error fetching my leave requests: {}", e.getMessage(), e);
+            // Return empty list instead of throwing
+            return ResponseEntity.ok(List.of());
         }
     }
 
@@ -589,29 +621,6 @@ public class LeaveController {
         } catch (Exception e) {
             logger.error("Error fetching employee leave balances: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    // In LeaveController.java - Fix the getMyLeaveRequests method
-    @GetMapping("/my-requests")
-    public ResponseEntity<?> getMyLeaveRequests() {
-        try {
-            // Get current authenticated user
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String currentEmail = authentication.getName(); // In your system, username = email
-
-            // Only use findByEmail - remove the findByUsername part
-            Employee employee = employeeRepository.findByEmail(currentEmail)
-                    .orElseThrow(() -> new ResourceNotFoundException("Employee not found for email: " + currentEmail));
-
-            // Get only this employee's leave requests
-            List<Leave> myRequests = leaveService.getLeavesByEmployeeId(employee.getId());
-            logger.info("Found {} leave requests for employee: {}", myRequests.size(), employee.getEmployeeId());
-
-            return ResponseEntity.ok(myRequests);
-        } catch (Exception e) {
-            logger.error("Error fetching my leave requests: {}", e.getMessage(), e);
-            return ResponseEntity.ok(List.of()); // Return empty list on error
         }
     }
 

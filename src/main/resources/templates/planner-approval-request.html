@@ -475,7 +475,7 @@
             <p class="action-title">Review and Take Action</p>
 
             <div class="action-buttons">
-                <a th:href="@{${baseUrl}/leave/approval/{id}(id=${leave.id})}" class="btn btn-approve">Review & Approve</a>
+                <a th:href="${baseUrl + '/leave?leaveId=' + leave.id}" class="btn btn-approve">Review & Approve</a>
                 <a th:href="@{${baseUrl}/plannerDashboard}" class="btn btn-view">Planner Dashboard</a>
             </div>
 

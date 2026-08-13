@@ -4,6 +4,7 @@ import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
 import com.example.eac_backend_project.Service.settings.AttendanceCodeSettingsService;
 import com.example.eac_backend_project.Service.settings.SettingsService;
 import com.example.eac_backend_project.dto.TimesheetDTO;
+import com.example.eac_backend_project.dto.TimesheetListDTO;
 import com.example.eac_backend_project.dto.TimesheetUpdateDTO;
 import com.example.eac_backend_project.entity.attendance.*;
 import com.example.eac_backend_project.entity.settings.AttendanceCodeSettings;
@@ -197,6 +198,61 @@ public class TimesheetService {
             }
         }
         return savedTimesheets;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TimesheetListDTO> getTimesheetRows(
+            LocalDate startDate,
+            LocalDate endDate,
+            Long employeeId,
+            Long categoryId,
+            Long jobId,
+            boolean withoutJob,
+            TimesheetStatus status,
+            Boolean sourceMissing,
+            String search
+    ) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException(
+                    "startDate and endDate are required"
+            );
+        }
+
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException(
+                    "endDate must be on or after startDate"
+            );
+        }
+
+        Long normalizedEmployeeId =
+                employeeId != null && employeeId > 0
+                        ? employeeId
+                        : null;
+
+        Long normalizedCategoryId =
+                categoryId != null && categoryId > 0
+                        ? categoryId
+                        : null;
+
+        Long normalizedJobId =
+                jobId != null && jobId > 0
+                        ? jobId
+                        : null;
+
+        String normalizedSearch =
+                search == null ? "" : search.trim();
+
+        return timesheetRepository.findTimesheetRows(
+                startDate,
+                endDate,
+                normalizedEmployeeId,
+                normalizedCategoryId,
+                normalizedJobId,
+                withoutJob,
+                status,
+                sourceMissing,
+                normalizedSearch
+        );
     }
 
     @Transactional
@@ -859,6 +915,7 @@ public class TimesheetService {
         // 3. Create the ZIP in memory
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            Set<String> zipEntryNames = new HashSet<>();
             // Add the Excel file
             ZipEntry excelEntry = new ZipEntry("Invoice_" + jobId + "_" + startDate + "_to_" + endDate + ".xlsx");
             zos.putNextEntry(excelEntry);
@@ -870,7 +927,9 @@ public class TimesheetService {
                 File file = new File(att.getFilePath());
                 if (file.exists() && file.isFile()) {
                     // Use a subfolder to keep the ZIP clean
-                    String entryName = "attachments/" + att.getFileName();
+                    String requestedName = "attachments/" + att.getDocumentDate() + "/"
+                            + att.getDocumentDate() + "_" + sanitizeZipFileName(att.getFileName());
+                    String entryName = uniqueZipEntryName(zipEntryNames, requestedName);
                     ZipEntry fileEntry = new ZipEntry(entryName);
                     zos.putNextEntry(fileEntry);
 
@@ -890,6 +949,24 @@ public class TimesheetService {
         }
 
         return baos.toByteArray();
+    }
+
+    private String uniqueZipEntryName(Set<String> zipEntryNames, String requestedName) {
+        String candidate = requestedName;
+        int slash = requestedName.lastIndexOf('/');
+        int dot = requestedName.lastIndexOf('.');
+        String base = dot > slash ? requestedName.substring(0, dot) : requestedName;
+        String extension = dot > slash ? requestedName.substring(dot) : "";
+        int suffix = 2;
+        while (!zipEntryNames.add(candidate)) {
+            candidate = base + "_" + suffix++ + extension;
+        }
+        return candidate;
+    }
+
+    private String sanitizeZipFileName(String fileName) {
+        String safe = fileName == null || fileName.isBlank() ? "attachment" : fileName;
+        return safe.replace("\\", "_").replace("/", "_");
     }
 
     /**

@@ -1,9 +1,13 @@
 package com.example.eac_backend_project.entity.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
+import lombok.Data;
+
 import java.util.ArrayList;
 import java.util.List;
 
+@Data
 @Entity
 @Table(name = "job_positions")
 public class JobPosition {
@@ -16,10 +20,14 @@ public class JobPosition {
 
     private String description;
 
-    // Change from String to Category entity relationship
     @ManyToOne
     @JoinColumn(name = "category_id")
     private Category category;
+
+    @ManyToOne
+    @JoinColumn(name = "department_id", nullable = false)
+    @JsonProperty("department")
+    private Department department;
 
     @Column(name = "base_rate")
     private Double baseRate = 0.0;
@@ -65,6 +73,9 @@ public class JobPosition {
     public Category getCategory() { return category; }
     public void setCategory(Category category) { this.category = category; }
 
+    public Department getDepartment() { return department; }
+    public void setDepartment(Department department) { this.department = department; }
+
     public Double getBaseRate() { return baseRate; }
     public void setBaseRate(Double baseRate) { this.baseRate = baseRate; }
 
@@ -72,6 +83,8 @@ public class JobPosition {
     public void setStandardWorkHours(Integer standardWorkHours) { this.standardWorkHours = standardWorkHours; }
 
     public List<JobGrade> getGrades() { return grades; }
+
+    // This setGrades method correctly handles the bidirectional relationship
     public void setGrades(List<JobGrade> grades) {
         this.grades.clear();
         if (grades != null) {

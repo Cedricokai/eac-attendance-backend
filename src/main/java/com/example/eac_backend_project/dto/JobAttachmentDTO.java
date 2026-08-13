@@ -1,6 +1,7 @@
 package com.example.eac_backend_project.dto;
 
 import com.example.eac_backend_project.entity.attendance.JobAttachment;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class JobAttachmentDTO {
@@ -11,6 +12,7 @@ public class JobAttachmentDTO {
     private Long fileSize;
     private String fileType;
     private LocalDateTime uploadedAt;
+    private LocalDate documentDate;
     private String description;
 
     public JobAttachmentDTO() {}
@@ -23,6 +25,7 @@ public class JobAttachmentDTO {
         this.fileSize = attachment.getFileSize();
         this.fileType = attachment.getFileType();
         this.uploadedAt = attachment.getUploadedAt();
+        this.documentDate = attachment.getDocumentDate();
         this.description = attachment.getDescription();
     }
 
@@ -60,6 +63,9 @@ public class JobAttachmentDTO {
 
     public LocalDateTime getUploadedAt() { return uploadedAt; }
     public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
+
+    public LocalDate getDocumentDate() { return documentDate; }
+    public void setDocumentDate(LocalDate documentDate) { this.documentDate = documentDate; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

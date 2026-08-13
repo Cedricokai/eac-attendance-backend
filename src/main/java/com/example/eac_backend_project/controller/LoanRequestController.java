@@ -6,21 +6,22 @@ import com.example.eac_backend_project.dto.LoanStatusUpdateDTO;
 import com.example.eac_backend_project.dto.ToggleActiveStatusDTO;
 import com.example.eac_backend_project.entity.attendance.LoanRequest;
 import com.example.eac_backend_project.repository.LoanRequestRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/loans")
 public class LoanRequestController {
+
+    private static final Logger logger = LoggerFactory.getLogger(LoanRequestController.class);
 
     private final LoanRequestService loanRequestService;
 
@@ -54,7 +55,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get active display loans for employee (only non-consolidated)
     @GetMapping("/employee/{employeeId}/active-display")
     public ResponseEntity<?> getActiveDisplayLoansForEmployee(@PathVariable Long employeeId) {
         try {
@@ -66,7 +66,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get complete loan history for an employee (FIXES THE 401 ERROR)
     @GetMapping("/employee/{employeeId}/history")
     public ResponseEntity<?> getEmployeeLoanHistory(@PathVariable Long employeeId) {
         try {
@@ -78,7 +77,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get consolidated loans for an employee
     @GetMapping("/employee/{employeeId}/consolidated")
     public ResponseEntity<?> getConsolidatedLoansForEmployee(@PathVariable Long employeeId) {
         try {
@@ -90,7 +88,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get completed loans for an employee
     @GetMapping("/employee/{employeeId}/completed")
     public ResponseEntity<?> getCompletedLoansForEmployee(@PathVariable Long employeeId) {
         try {
@@ -102,7 +99,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get employee loan status summary
     @GetMapping("/employee/{employeeId}/status")
     public ResponseEntity<?> getEmployeeLoanStatus(@PathVariable Long employeeId) {
         try {
@@ -114,7 +110,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get consolidated loan details
     @GetMapping("/consolidated/{consolidatedLoanId}")
     public ResponseEntity<?> getConsolidatedLoanDetails(@PathVariable Long consolidatedLoanId) {
         try {
@@ -126,7 +121,6 @@ public class LoanRequestController {
         }
     }
 
-    // NEW: Get loan summary statistics
     @GetMapping("/statistics/summary")
     public ResponseEntity<?> getLoanSummaryStatistics() {
         try {
@@ -197,7 +191,6 @@ public class LoanRequestController {
     @DeleteMapping("/consolidated/{consolidatedLoanId}/delete-with-restoration")
     public ResponseEntity<?> deleteConsolidatedLoanWithRestoration(@PathVariable Long consolidatedLoanId) {
         try {
-            // First check if the loan exists and is a consolidated loan
             LoanRequest loan = loanRequestRepository.findById(consolidatedLoanId)
                     .orElseThrow(() -> new RuntimeException("Loan not found with id: " + consolidatedLoanId));
 
@@ -207,12 +200,10 @@ public class LoanRequestController {
                 ));
             }
 
-            // Find original loans that would be restored (for response) - DO THIS BEFORE DELETION
             List<LoanRequest> originalLoansToRestore = loanRequestRepository.findAll().stream()
                     .filter(l -> consolidatedLoanId.equals(l.getPreviousLoanId()))
                     .collect(Collectors.toList());
 
-            // Build response data BEFORE deletion (capture all needed data)
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Consolidated loan #" + consolidatedLoanId + " has been deleted and " +
@@ -220,10 +211,8 @@ public class LoanRequestController {
             response.put("restoredLoanCount", originalLoansToRestore.size());
             response.put("restoredLoanIds", originalLoansToRestore.stream().map(LoanRequest::getId).collect(Collectors.toList()));
 
-            // Execute deletion with restoration (this will delete the entity from database)
             loanRequestService.deleteConsolidatedLoanWithRestoration(consolidatedLoanId);
 
-            // Return the pre-built response (no reference to deleted entity)
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
@@ -235,7 +224,6 @@ public class LoanRequestController {
         }
     }
 
-    // Preview what would happen when deleting a consolidated loan (dry run)
     @GetMapping("/consolidated/{consolidatedLoanId}/preview-deletion")
     public ResponseEntity<?> previewConsolidatedLoanDeletion(@PathVariable Long consolidatedLoanId) {
         try {
@@ -248,12 +236,10 @@ public class LoanRequestController {
                 ));
             }
 
-            // Find original loans that would be restored
             List<LoanRequest> originalLoansToRestore = loanRequestRepository.findAll().stream()
                     .filter(loan -> consolidatedLoanId.equals(loan.getPreviousLoanId()))
                     .collect(Collectors.toList());
 
-            // Calculate totals that would be restored
             double totalOriginalAmount = originalLoansToRestore.stream()
                     .mapToDouble(loan -> loan.getApprovedAmount() != null ? loan.getApprovedAmount() : loan.getLoanAmount())
                     .sum();
@@ -292,7 +278,6 @@ public class LoanRequestController {
         }
     }
 
-    // Soft delete consolidated loan (mark as deleted without restoration)
     @PutMapping("/consolidated/{consolidatedLoanId}/soft-delete")
     public ResponseEntity<?> softDeleteConsolidatedLoan(
             @PathVariable Long consolidatedLoanId,
@@ -314,7 +299,6 @@ public class LoanRequestController {
                 ));
             }
 
-            // Soft delete - mark as deleted but keep in database
             consolidatedLoan.setStatus("Deleted");
             consolidatedLoan.setIsActive(false);
             consolidatedLoan.setDeactivatedBy(deletedBy);
@@ -339,7 +323,6 @@ public class LoanRequestController {
         }
     }
 
-    // Restore a soft-deleted consolidated loan
     @PutMapping("/consolidated/{consolidatedLoanId}/restore")
     public ResponseEntity<?> restoreConsolidatedLoan(@PathVariable Long consolidatedLoanId) {
         try {
@@ -352,7 +335,6 @@ public class LoanRequestController {
                 ));
             }
 
-            // Restore the consolidated loan
             consolidatedLoan.setStatus("Approved");
             consolidatedLoan.setIsActive(true);
             consolidatedLoan.setDeactivatedBy(null);
@@ -375,7 +357,6 @@ public class LoanRequestController {
         }
     }
 
-    // Get all deletable consolidated loans
     @GetMapping("/consolidated/deletable")
     public ResponseEntity<?> getDeletableConsolidatedLoans() {
         try {
@@ -394,7 +375,6 @@ public class LoanRequestController {
                 loanInfo.put("consolidationDate", loan.getConsolidationDate());
                 loanInfo.put("consolidatedBy", loan.getConsolidatedBy());
 
-                // Count original loans that would be restored
                 long originalCount = loanRequestRepository.findAll().stream()
                         .filter(l -> loan.getId().equals(l.getPreviousLoanId()))
                         .count();
@@ -410,6 +390,8 @@ public class LoanRequestController {
         }
     }
 
+    // ============ BULK OPERATION ENDPOINTS (FIXED) ============
+
     @PostMapping("/bulk/toggle-active")
     public ResponseEntity<?> bulkToggleActiveStatus(
             @RequestBody Map<String, Object> request) {
@@ -422,6 +404,11 @@ public class LoanRequestController {
 
             if (loanIds == null || loanIds.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "No loan IDs provided"));
+            }
+
+            // Use default processedBy if not provided
+            if (processedBy == null || processedBy.trim().isEmpty()) {
+                processedBy = "System";
             }
 
             List<Map<String, Object>> results = new ArrayList<>();
@@ -441,6 +428,7 @@ public class LoanRequestController {
                     result.put("loanId", loanId);
                     result.put("success", true);
                     result.put("isActive", updated.getIsActive());
+                    result.put("message", "Toggle successful");
                     results.add(result);
                     successCount++;
                 } catch (Exception e) {
@@ -450,6 +438,7 @@ public class LoanRequestController {
                     result.put("error", e.getMessage());
                     results.add(result);
                     failureCount++;
+                    logger.error("Failed to toggle loan {}: {}", loanId, e.getMessage());
                 }
             }
 
@@ -463,6 +452,7 @@ public class LoanRequestController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Error in bulk toggle: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -470,13 +460,40 @@ public class LoanRequestController {
     @PostMapping("/bulk/approve")
     public ResponseEntity<?> bulkApprove(@RequestBody Map<String, Object> request) {
         try {
-            @SuppressWarnings("unchecked")
-            List<Long> loanIds = (List<Long>) request.get("loanIds");
+            // FIX: Handle both Integer and Long types
+            Object loanIdsObj = request.get("loanIds");
+            if (loanIdsObj == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "No loan IDs provided"));
+            }
+
+            List<Long> loanIds = new ArrayList<>();
+
+            // Handle different possible types
+            if (loanIdsObj instanceof List) {
+                List<?> rawList = (List<?>) loanIdsObj;
+                for (Object item : rawList) {
+                    if (item instanceof Number) {
+                        loanIds.add(((Number) item).longValue());
+                    } else if (item instanceof String) {
+                        try {
+                            loanIds.add(Long.parseLong((String) item));
+                        } catch (NumberFormatException e) {
+                            logger.warn("Could not parse loan ID: {}", item);
+                        }
+                    }
+                }
+            }
+
+            if (loanIds.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "No valid loan IDs provided"));
+            }
+
             String processedBy = (String) request.get("processedBy");
             String notes = (String) request.get("notes");
 
-            if (loanIds == null || loanIds.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "No loan IDs provided"));
+            // Use default processedBy if not provided
+            if (processedBy == null || processedBy.trim().isEmpty()) {
+                processedBy = "System";
             }
 
             List<Map<String, Object>> results = new ArrayList<>();
@@ -488,7 +505,7 @@ public class LoanRequestController {
                     LoanStatusUpdateDTO dto = new LoanStatusUpdateDTO();
                     dto.setStatus("Approved");
                     dto.setProcessedBy(processedBy);
-                    dto.setNotes(notes);
+                    dto.setNotes(notes != null && !notes.trim().isEmpty() ? notes : "Bulk approved");
 
                     LoanRequest updated = loanRequestService.updateLoanStatus(loanId, dto);
 
@@ -496,6 +513,7 @@ public class LoanRequestController {
                     result.put("loanId", loanId);
                     result.put("success", true);
                     result.put("status", updated.getStatus());
+                    result.put("message", "Approved successfully");
                     results.add(result);
                     successCount++;
                 } catch (Exception e) {
@@ -505,6 +523,7 @@ public class LoanRequestController {
                     result.put("error", e.getMessage());
                     results.add(result);
                     failureCount++;
+                    logger.error("Failed to approve loan {}: {}", loanId, e.getMessage());
                 }
             }
 
@@ -514,23 +533,53 @@ public class LoanRequestController {
             response.put("successCount", successCount);
             response.put("failureCount", failureCount);
             response.put("results", results);
+            response.put("message", String.format("Bulk approval completed: %d succeeded, %d failed", successCount, failureCount));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Error in bulk approve: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
+
     @PostMapping("/bulk/reject")
     public ResponseEntity<?> bulkReject(@RequestBody Map<String, Object> request) {
         try {
-            @SuppressWarnings("unchecked")
-            List<Long> loanIds = (List<Long>) request.get("loanIds");
+            // FIX: Handle both Integer and Long types
+            Object loanIdsObj = request.get("loanIds");
+            if (loanIdsObj == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "No loan IDs provided"));
+            }
+
+            List<Long> loanIds = new ArrayList<>();
+
+            // Handle different possible types
+            if (loanIdsObj instanceof List) {
+                List<?> rawList = (List<?>) loanIdsObj;
+                for (Object item : rawList) {
+                    if (item instanceof Number) {
+                        loanIds.add(((Number) item).longValue());
+                    } else if (item instanceof String) {
+                        try {
+                            loanIds.add(Long.parseLong((String) item));
+                        } catch (NumberFormatException e) {
+                            logger.warn("Could not parse loan ID: {}", item);
+                        }
+                    }
+                }
+            }
+
+            if (loanIds.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "No valid loan IDs provided"));
+            }
+
             String processedBy = (String) request.get("processedBy");
             String notes = (String) request.get("notes");
 
-            if (loanIds == null || loanIds.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "No loan IDs provided"));
+            // Use default processedBy if not provided
+            if (processedBy == null || processedBy.trim().isEmpty()) {
+                processedBy = "System";
             }
 
             List<Map<String, Object>> results = new ArrayList<>();
@@ -542,7 +591,7 @@ public class LoanRequestController {
                     LoanStatusUpdateDTO dto = new LoanStatusUpdateDTO();
                     dto.setStatus("Rejected");
                     dto.setProcessedBy(processedBy);
-                    dto.setNotes(notes);
+                    dto.setNotes(notes != null && !notes.trim().isEmpty() ? notes : "Bulk rejected");
 
                     LoanRequest updated = loanRequestService.updateLoanStatus(loanId, dto);
 
@@ -550,6 +599,7 @@ public class LoanRequestController {
                     result.put("loanId", loanId);
                     result.put("success", true);
                     result.put("status", updated.getStatus());
+                    result.put("message", "Rejected successfully");
                     results.add(result);
                     successCount++;
                 } catch (Exception e) {
@@ -559,6 +609,7 @@ public class LoanRequestController {
                     result.put("error", e.getMessage());
                     results.add(result);
                     failureCount++;
+                    logger.error("Failed to reject loan {}: {}", loanId, e.getMessage());
                 }
             }
 
@@ -568,14 +619,17 @@ public class LoanRequestController {
             response.put("successCount", successCount);
             response.put("failureCount", failureCount);
             response.put("results", results);
+            response.put("message", String.format("Bulk rejection completed: %d succeeded, %d failed", successCount, failureCount));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Error in bulk reject: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
-    // Get pending loans
+    // ============ ADDITIONAL QUERY ENDPOINTS ============
+
     @GetMapping("/pending")
     public ResponseEntity<?> getPendingLoans() {
         try {
@@ -587,7 +641,6 @@ public class LoanRequestController {
         }
     }
 
-    // Get loans by status
     @GetMapping("/status/{status}")
     public ResponseEntity<?> getLoansByStatus(@PathVariable String status) {
         try {
@@ -599,7 +652,6 @@ public class LoanRequestController {
         }
     }
 
-    // Get loans processed by a specific user
     @GetMapping("/processed-by/{processedBy}")
     public ResponseEntity<?> getLoansProcessedBy(@PathVariable String processedBy) {
         try {

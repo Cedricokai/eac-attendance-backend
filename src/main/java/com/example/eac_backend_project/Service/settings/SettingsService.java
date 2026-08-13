@@ -222,6 +222,8 @@ public class SettingsService {
     }
 
     public JobPosition createJobPosition(JobPosition jobPosition) {
+
+
         if (jobPositionRepository.existsByName(jobPosition.getName())) {
             throw new RuntimeException("Job position already exists: " + jobPosition.getName());
         }
@@ -243,10 +245,9 @@ public class SettingsService {
         existingPosition.setName(jobPosition.getName());
         existingPosition.setDescription(jobPosition.getDescription());
         existingPosition.setCategory(jobPosition.getCategory());
+        existingPosition.setDepartment(jobPosition.getDepartment());   // <-- ADD THIS
         existingPosition.setBaseRate(jobPosition.getBaseRate());
         existingPosition.setStandardWorkHours(jobPosition.getStandardWorkHours());
-
-        // Update grades
         existingPosition.setGrades(jobPosition.getGrades());
 
         return jobPositionRepository.save(existingPosition);
@@ -361,6 +362,36 @@ public class SettingsService {
             existingSettings.setTimeAndHalfMultiplier(settingsDTO.getTimeAndHalfMultiplier());
         }
 
+        if (settingsDTO.getAccountantRecipients() != null) {
+            existingSettings.setAccountantRecipients(settingsDTO.getAccountantRecipients());
+        }
+        if (settingsDTO.getReviewerRecipients() != null) {
+            existingSettings.setReviewerRecipients(settingsDTO.getReviewerRecipients());
+        }
+        if (settingsDTO.getFinanceRecipients() != null) {
+            existingSettings.setFinanceRecipients(settingsDTO.getFinanceRecipients());
+        }
+        if (settingsDTO.getRequesterNotificationEnabled() != null) {
+            existingSettings.setRequesterNotificationEnabled(
+                    settingsDTO.getRequesterNotificationEnabled()
+            );
+        }
+        if (settingsDTO.getAccountantNotificationEnabled() != null) {
+            existingSettings.setAccountantNotificationEnabled(
+                    settingsDTO.getAccountantNotificationEnabled()
+            );
+        }
+        if (settingsDTO.getReviewerNotificationEnabled() != null) {
+            existingSettings.setReviewerNotificationEnabled(
+                    settingsDTO.getReviewerNotificationEnabled()
+            );
+        }
+        if (settingsDTO.getFinanceNotificationEnabled() != null) {
+            existingSettings.setFinanceNotificationEnabled(
+                    settingsDTO.getFinanceNotificationEnabled()
+            );
+        }
+
         // company fields
         if (settingsDTO.getCompanyName() != null) {
             existingSettings.setCompanyName(settingsDTO.getCompanyName());
@@ -381,6 +412,116 @@ public class SettingsService {
         }
         if (settingsDTO.getBillingReminderEnabled() != null) {
             existingSettings.setBillingReminderEnabled(settingsDTO.getBillingReminderEnabled());
+        }
+
+        if (settingsDTO.getInventoryRequestRecipients() != null) {
+            existingSettings.setInventoryRequestRecipients(
+                    settingsDTO.getInventoryRequestRecipients()
+            );
+        }
+
+        if (settingsDTO.getInventoryPlannerRecipients() != null) {
+            existingSettings.setInventoryPlannerRecipients(
+                    settingsDTO.getInventoryPlannerRecipients()
+            );
+        }
+
+        if (settingsDTO.getInventoryProcurementRecipients() != null) {
+            existingSettings.setInventoryProcurementRecipients(
+                    settingsDTO.getInventoryProcurementRecipients()
+            );
+        }
+
+        if (settingsDTO.getInventoryStoreRecipients() != null) {
+            existingSettings.setInventoryStoreRecipients(
+                    settingsDTO.getInventoryStoreRecipients()
+            );
+        }
+
+        if (settingsDTO.getInventoryStatusRecipients() != null) {
+            existingSettings.setInventoryStatusRecipients(
+                    settingsDTO.getInventoryStatusRecipients()
+            );
+        }
+
+        if (settingsDTO.getInventoryRequesterNotificationEnabled() != null) {
+            existingSettings.setInventoryRequesterNotificationEnabled(
+                    settingsDTO.getInventoryRequesterNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getInventoryPlannerNotificationEnabled() != null) {
+            existingSettings.setInventoryPlannerNotificationEnabled(
+                    settingsDTO.getInventoryPlannerNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getInventoryProcurementNotificationEnabled() != null) {
+            existingSettings.setInventoryProcurementNotificationEnabled(
+                    settingsDTO.getInventoryProcurementNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getInventoryStoreNotificationEnabled() != null) {
+            existingSettings.setInventoryStoreNotificationEnabled(
+                    settingsDTO.getInventoryStoreNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getInventoryStatusNotificationEnabled() != null) {
+            existingSettings.setInventoryStatusNotificationEnabled(
+                    settingsDTO.getInventoryStatusNotificationEnabled()
+            );
+        }
+
+        // PPE notification recipient fields
+        if (settingsDTO.getPpeRequestRecipients() != null) {
+            existingSettings.setPpeRequestRecipients(
+                    settingsDTO.getPpeRequestRecipients()
+            );
+        }
+
+        if (settingsDTO.getPpeProcurementRecipients() != null) {
+            existingSettings.setPpeProcurementRecipients(
+                    settingsDTO.getPpeProcurementRecipients()
+            );
+        }
+
+        if (settingsDTO.getPpeStoreRecipients() != null) {
+            existingSettings.setPpeStoreRecipients(
+                    settingsDTO.getPpeStoreRecipients()
+            );
+        }
+
+        if (settingsDTO.getPpeStatusRecipients() != null) {
+            existingSettings.setPpeStatusRecipients(
+                    settingsDTO.getPpeStatusRecipients()
+            );
+        }
+
+        // PPE notification toggle fields
+        if (settingsDTO.getPpeRequesterNotificationEnabled() != null) {
+            existingSettings.setPpeRequesterNotificationEnabled(
+                    settingsDTO.getPpeRequesterNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getPpeProcurementNotificationEnabled() != null) {
+            existingSettings.setPpeProcurementNotificationEnabled(
+                    settingsDTO.getPpeProcurementNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getPpeStoreNotificationEnabled() != null) {
+            existingSettings.setPpeStoreNotificationEnabled(
+                    settingsDTO.getPpeStoreNotificationEnabled()
+            );
+        }
+
+        if (settingsDTO.getPpeStatusNotificationEnabled() != null) {
+            existingSettings.setPpeStatusNotificationEnabled(
+                    settingsDTO.getPpeStatusNotificationEnabled()
+            );
         }
 
         // Add these lines for loan notification fields (if not already present)
@@ -481,7 +622,7 @@ public class SettingsService {
             logger.warn("employeeCategories is null");
         }
 
-      catJson = existingSettings.getEmployeeCategories();
+        catJson = existingSettings.getEmployeeCategories();
 
         if (catJson != null && catJson.length() > 100000) {
             throw new RuntimeException(
@@ -602,6 +743,21 @@ public class SettingsService {
         dto.setTimeAndHalfAfter8Hours(settings.getTimeAndHalfAfter8Hours());
         dto.setWeekendRate(settings.getWeekendRate());
         dto.setHolidayRate(settings.getHolidayRate());
+        dto.setAccountantRecipients(settings.getAccountantRecipients());
+        dto.setReviewerRecipients(settings.getReviewerRecipients());
+        dto.setFinanceRecipients(settings.getFinanceRecipients());
+        dto.setRequesterNotificationEnabled(
+                settings.getRequesterNotificationEnabled()
+        );
+        dto.setAccountantNotificationEnabled(
+                settings.getAccountantNotificationEnabled()
+        );
+        dto.setReviewerNotificationEnabled(
+                settings.getReviewerNotificationEnabled()
+        );
+        dto.setFinanceNotificationEnabled(
+                settings.getFinanceNotificationEnabled()
+        );
 
         // Handle weekendDays conversion from String to List<Integer>
         try {
@@ -647,6 +803,66 @@ public class SettingsService {
         dto.setBillingReminderEmails(settings.getBillingReminderEmails());
         dto.setBillingReminderEnabled(settings.getBillingReminderEnabled());
         dto.setLateArrivalTime(settings.getLateArrivalTime());
+
+        dto.setInventoryRequestRecipients(
+                settings.getInventoryRequestRecipients()
+        );
+        dto.setInventoryPlannerRecipients(
+                settings.getInventoryPlannerRecipients()
+        );
+        dto.setInventoryProcurementRecipients(
+                settings.getInventoryProcurementRecipients()
+        );
+        dto.setInventoryStoreRecipients(
+                settings.getInventoryStoreRecipients()
+        );
+        dto.setInventoryStatusRecipients(
+                settings.getInventoryStatusRecipients()
+        );
+
+        dto.setInventoryRequesterNotificationEnabled(
+                settings.getInventoryRequesterNotificationEnabled()
+        );
+        dto.setInventoryPlannerNotificationEnabled(
+                settings.getInventoryPlannerNotificationEnabled()
+        );
+        dto.setInventoryProcurementNotificationEnabled(
+                settings.getInventoryProcurementNotificationEnabled()
+        );
+        dto.setInventoryStoreNotificationEnabled(
+                settings.getInventoryStoreNotificationEnabled()
+        );
+        dto.setInventoryStatusNotificationEnabled(
+                settings.getInventoryStatusNotificationEnabled()
+        );
+
+        // PPE notification recipients
+        dto.setPpeRequestRecipients(
+                settings.getPpeRequestRecipients()
+        );
+        dto.setPpeProcurementRecipients(
+                settings.getPpeProcurementRecipients()
+        );
+        dto.setPpeStoreRecipients(
+                settings.getPpeStoreRecipients()
+        );
+        dto.setPpeStatusRecipients(
+                settings.getPpeStatusRecipients()
+        );
+
+        // PPE notification toggles
+        dto.setPpeRequesterNotificationEnabled(
+                settings.getPpeRequesterNotificationEnabled()
+        );
+        dto.setPpeProcurementNotificationEnabled(
+                settings.getPpeProcurementNotificationEnabled()
+        );
+        dto.setPpeStoreNotificationEnabled(
+                settings.getPpeStoreNotificationEnabled()
+        );
+        dto.setPpeStatusNotificationEnabled(
+                settings.getPpeStatusNotificationEnabled()
+        );
 
         // Leave and attendance notification fields
         dto.setLeaveRequestRecipients(settings.getLeaveRequestRecipients());

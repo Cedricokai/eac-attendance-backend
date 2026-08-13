@@ -1,7 +1,10 @@
 package com.example.eac_backend_project.repository;
 
+import com.example.eac_backend_project.dto.OvertimeListDTO;
 import com.example.eac_backend_project.entity.attendance.Overtime;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -112,6 +115,137 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
             @Param("categories") List<String> categories
     );
 
+    void deleteByAttendanceId(Long attendanceId);
+
+    @Query(
+            value = """
+            SELECT new com.example.eac_backend_project.dto.OvertimeListDTO(
+                o.id,
+                o.date,
+                o.startTime,
+                o.endTime,
+                o.overtimeHours,
+                o.rawOvertimeHours,
+                o.status,
+                o.notes,
+                o.category,
+                o.baseHourlyRate,
+                o.overtimeMultiplier,
+                o.calculatedOvertimePay,
+                o.multiplierAppliedToHours,
+                a.id,
+                e.id,
+                e.employeeId,
+                e.firstName,
+                e.lastName,
+                e.minimumRate,
+                c.id,
+                c.name
+            )
+            FROM Overtime o
+            JOIN o.employee e
+            LEFT JOIN o.attendance a
+            LEFT JOIN e.category c
+            WHERE o.date BETWEEN :startDate AND :endDate
+              AND (
+                  :categoryId IS NULL
+                  OR c.id = :categoryId
+              )
+              AND (
+                  :status IS NULL
+                  OR :status = ''
+                  OR LOWER(o.status) = LOWER(:status)
+              )
+              AND (
+                  :search IS NULL
+                  OR :search = ''
+                  OR LOWER(e.firstName)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(e.lastName)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(CONCAT(e.firstName, ' ', e.lastName))
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(e.employeeId)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(o.status)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+              )
+              AND (
+                  :minHours IS NULL
+                  OR o.overtimeHours >= :minHours
+              )
+              AND (
+                  :maxHours IS NULL
+                  OR o.overtimeHours <= :maxHours
+              )
+              AND (
+                  :minAmount IS NULL
+                  OR o.calculatedOvertimePay >= :minAmount
+              )
+              AND (
+                  :maxAmount IS NULL
+                  OR o.calculatedOvertimePay <= :maxAmount
+              )
+            """,
+            countQuery = """
+            SELECT COUNT(o.id)
+            FROM Overtime o
+            JOIN o.employee e
+            LEFT JOIN e.category c
+            WHERE o.date BETWEEN :startDate AND :endDate
+              AND (
+                  :categoryId IS NULL
+                  OR c.id = :categoryId
+              )
+              AND (
+                  :status IS NULL
+                  OR :status = ''
+                  OR LOWER(o.status) = LOWER(:status)
+              )
+              AND (
+                  :search IS NULL
+                  OR :search = ''
+                  OR LOWER(e.firstName)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(e.lastName)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(CONCAT(e.firstName, ' ', e.lastName))
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(e.employeeId)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+                  OR LOWER(o.status)
+                        LIKE LOWER(CONCAT('%', :search, '%'))
+              )
+              AND (
+                  :minHours IS NULL
+                  OR o.overtimeHours >= :minHours
+              )
+              AND (
+                  :maxHours IS NULL
+                  OR o.overtimeHours <= :maxHours
+              )
+              AND (
+                  :minAmount IS NULL
+                  OR o.calculatedOvertimePay >= :minAmount
+              )
+              AND (
+                  :maxAmount IS NULL
+                  OR o.calculatedOvertimePay <= :maxAmount
+              )
+            """
+    )
+    Page<OvertimeListDTO> findOvertimePage(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("categoryId") Long categoryId,
+            @Param("status") String status,
+            @Param("search") String search,
+            @Param("minHours") Double minHours,
+            @Param("maxHours") Double maxHours,
+            @Param("minAmount") Double minAmount,
+            @Param("maxAmount") Double maxAmount,
+            Pageable pageable
+    );
 
     @Modifying
     @Transactional
@@ -120,4 +254,11 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
 
     // For checking existence before delete
     boolean existsByIdIn(List<Long> ids);
+
+    Optional<Overtime> findByAttendanceId(Long attendanceId);
+
+    Optional<Overtime> findFirstByEmployeeIdAndDate(
+            Long employeeId,
+            LocalDate date
+    );
 }

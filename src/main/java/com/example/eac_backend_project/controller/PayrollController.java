@@ -463,6 +463,22 @@ public class PayrollController {
         }
     }
 
+    @DeleteMapping("/periods/{periodId}/employees/{employeeId}/temporary-allowances")
+    public ResponseEntity<?> removeTemporaryAllowances(
+            @PathVariable Long periodId,
+            @PathVariable Long employeeId) {
+        try {
+            return ResponseEntity.ok(payrollService.removeTemporaryAllowances(periodId, employeeId));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to remove temporary allowances: " + e.getMessage()));
+        }
+    }
+
     @DeleteMapping("/periods/{periodId}")
     public ResponseEntity<?> deletePayrollPeriod(@PathVariable Long periodId) {
         try {
