@@ -23,6 +23,8 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
 
     List<Attendance> findByDate(LocalDate date);
 
+    List<Attendance> findByDateAndCheckInIsNotNull(LocalDate date);
+
     Optional<Attendance> findByEmployeeIdAndDate(
             Long employeeId,
             LocalDate date
