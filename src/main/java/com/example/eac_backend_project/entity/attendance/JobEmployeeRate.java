@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "job_employee_rate", uniqueConstraints = {
@@ -42,9 +43,20 @@ public class JobEmployeeRate {
     @Column(name = "effective_to")
     private LocalDateTime effectiveTo;
 
+    private Double effectivePayrollRate;
+    private LocalDate effectivePayrollRateFrom;
+    private LocalDate effectivePayrollRateTo;
+
+    public boolean appliesOn(LocalDate date) {
+        return effectivePayrollRate != null && effectivePayrollRateFrom != null
+                && !date.isBefore(effectivePayrollRateFrom)
+                && (effectivePayrollRateTo == null || !date.isAfter(effectivePayrollRateTo));
+    }
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
 }

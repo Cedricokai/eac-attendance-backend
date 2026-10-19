@@ -80,8 +80,15 @@ public class AttendanceController {
 
     /** Legacy endpoint retained for compatibility. */
     @GetMapping
-    public List<Attendance> getAllAttendances() {
-        return attendanceService.getAllAttendances();
+    public List<Attendance> getAllAttendances(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (startDate == null && endDate == null) return attendanceService.getAllAttendances();
+        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Provide a valid startDate and endDate");
+        }
+        return attendanceService.getRecentAttendances(startDate, endDate);
     }
 
     @GetMapping("/page")
@@ -356,7 +363,8 @@ public class AttendanceController {
 
     @PostMapping("/batch")
 
-    public ResponseEntity<?> createBatchAttendances(@RequestBody List<Attendance> attendances) {
+    public ResponseEntity<?> createBatchAttendances(@RequestBody List<Attendance> attendances,
+            @RequestParam(defaultValue = "false") boolean overwriteExisting) {
 
         try {
 
@@ -364,7 +372,7 @@ public class AttendanceController {
 
                     .status(HttpStatus.CREATED)
 
-                    .body(attendanceService.createBatchAttendances(attendances));
+                    .body(attendanceService.createBatchAttendances(attendances, overwriteExisting));
 
         } catch (Exception e) {
 
@@ -535,6 +543,24 @@ public class AttendanceController {
     }
 
 
+
+    public record EmployeeAttendanceRow(Long id, Long employeeId, LocalDate date, java.time.LocalTime checkIn,
+            java.time.LocalTime checkOut, double minimumHour, Double overtime, String status, String shift) {}
+
+    @GetMapping("/by-employee-range")
+    public ResponseEntity<?> getByEmployeeAndRange(
+            @RequestParam Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (endDate.isBefore(startDate)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "End date must be on or after start date"));
+        }
+        List<EmployeeAttendanceRow> records = attendanceRepository.findByEmployeeIdAndDateBetween(employeeId, startDate, endDate)
+                .stream().map(a -> new EmployeeAttendanceRow(a.getId(), employeeId, a.getDate(), a.getCheckIn(),
+                        a.getCheckOut(), a.getMinimumHour(), a.getOvertime(), a.getStatus(), a.getShift()))
+                .toList();
+        return ResponseEntity.ok(records);
+    }
 
     @GetMapping("/by-employee-date")
 

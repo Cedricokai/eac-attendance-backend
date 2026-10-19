@@ -56,6 +56,7 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
             "FROM Overtime o " +
             "WHERE o.date BETWEEN :startDate AND :endDate " +
             "AND o.status = 'Approved' " +
+            "AND NOT EXISTS (SELECT a.id FROM Attendance a WHERE a.employee.id = o.employee.id AND a.date = o.date AND (a.method = 'TIMESHEET_SYNC' OR a.timesheetId IS NOT NULL OR a.projectId IS NOT NULL) AND NOT EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date AND (a.timesheetId IS NULL OR t.id = a.timesheetId) AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL)))) " +
             "AND o.overtimeHours > 0 " +
             "GROUP BY o.employee.id")
     List<Object[]> findApprovedOvertimeSummaryForPayroll(
@@ -65,6 +66,7 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
     @Query("SELECT o FROM Overtime o " +
             "WHERE o.date BETWEEN :startDate AND :endDate " +
             "AND o.status = 'Approved' " +
+            "AND NOT EXISTS (SELECT a.id FROM Attendance a WHERE a.employee.id = o.employee.id AND a.date = o.date AND (a.method = 'TIMESHEET_SYNC' OR a.timesheetId IS NOT NULL OR a.projectId IS NOT NULL) AND NOT EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date AND (a.timesheetId IS NULL OR t.id = a.timesheetId) AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL)))) " +
             "AND o.employee IS NOT NULL")
     List<Overtime> findApprovedOvertimeForPayrollPeriod(
             @Param("startDate") LocalDate startDate,
@@ -100,6 +102,7 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
             "FROM Overtime o " +
             "WHERE o.date BETWEEN :startDate AND :endDate " +
             "AND o.status = 'Approved' " +
+            "AND NOT EXISTS (SELECT a.id FROM Attendance a WHERE a.employee.id = o.employee.id AND a.date = o.date AND (a.method = 'TIMESHEET_SYNC' OR a.timesheetId IS NOT NULL OR a.projectId IS NOT NULL) AND NOT EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date AND (a.timesheetId IS NULL OR t.id = a.timesheetId) AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL)))) " +
             "AND o.employee.category.name = :category " +
             "GROUP BY o.employee.id, o.multiplierAppliedToHours")
     List<Object[]> summarizeApprovedOvertimeBetweenDatesForCategory(
@@ -146,7 +149,10 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
             JOIN o.employee e
             LEFT JOIN o.attendance a
             LEFT JOIN e.category c
+            LEFT JOIN e.job j
             WHERE o.date BETWEEN :startDate AND :endDate
+              AND (:jobId IS NULL OR j.id = :jobId)
+              AND (:unassignedJob = false OR j.id IS NULL)
               AND (
                   :categoryId IS NULL
                   OR c.id = :categoryId
@@ -192,7 +198,10 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
             FROM Overtime o
             JOIN o.employee e
             LEFT JOIN e.category c
+            LEFT JOIN e.job j
             WHERE o.date BETWEEN :startDate AND :endDate
+              AND (:jobId IS NULL OR j.id = :jobId)
+              AND (:unassignedJob = false OR j.id IS NULL)
               AND (
                   :categoryId IS NULL
                   OR c.id = :categoryId
@@ -238,6 +247,8 @@ public interface OvertimeRepository extends JpaRepository<Overtime, Long> {
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("categoryId") Long categoryId,
+            @Param("jobId") Long jobId,
+            @Param("unassignedJob") boolean unassignedJob,
             @Param("status") String status,
             @Param("search") String search,
             @Param("minHours") Double minHours,

@@ -32,6 +32,7 @@ public class LunchAssignment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_by", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private User assignedBy;
 
     @Column(length = 50)

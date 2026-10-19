@@ -8,6 +8,7 @@ import com.example.eac_backend_project.entity.attendance.LoanRequest;
 import com.example.eac_backend_project.entity.inventory.InventoryRequest;
 import com.example.eac_backend_project.entity.attendance.Overtime;
 import com.example.eac_backend_project.entity.inventory.User;
+import com.example.eac_backend_project.entity.inventory.PurchaseOrder;
 import com.example.eac_backend_project.dto.AttendanceRequestResponseDTO;
 
 import java.util.List;
@@ -16,12 +17,7 @@ public interface EmailService {
 
     // ========== LEAVE NOTIFICATIONS ==========
     void sendLeaveRequestNotification(Leave leave);
-
-    void sendLeaveRequestToSupervisor(
-            Leave leave,
-            String supervisorEmail,
-            String supervisorName
-    );
+    void sendLeaveRequestToSupervisor(Leave leave, String supervisorEmail, String supervisorName);
     void sendSupervisorApprovalNotification(Leave leave, String feedback);
     void sendPlannerApprovalNotification(Leave leave, String feedback);
     void sendHrApprovalNotification(Leave leave, String feedback);
@@ -45,8 +41,6 @@ public interface EmailService {
     void sendAttendanceRequestReviewNotification(List<AttendanceRequestResponseDTO> requests, String submittedBy);
     void sendBulkApprovalNotification(Leave leave, String feedback);
 
-
-
     // ========== LOAN NOTIFICATIONS ==========
     void sendLoanRequestNotificationToAll(LoanRequest loan);
     void sendLoanRequestSubmittedConfirmation(LoanRequest loan);
@@ -60,6 +54,10 @@ public interface EmailService {
     void sendDirectPurchaseRejected(DirectPurchaseResponseDTO dto, String recipientEmail, String reason);
     void sendDirectPurchasePaid(DirectPurchaseResponseDTO dto, String requesterEmail, String accountantEmail, String notes);
 
+    // ========== PROCUREMENT PURCHASE NOTIFICATIONS ==========
+    void sendProcurementPurchaseCreated(PurchaseOrder purchaseOrder);
+    void sendProcurementPurchaseStoreNotification(PurchaseOrder purchaseOrder, String notificationNotes);
+
     // ========== NORMAL INVENTORY NOTIFICATIONS ==========
     void sendInventoryRequestCreated(InventoryRequest request, String requesterEmail);
     void sendInventoryStatusChanged(InventoryRequest request, String action, String performedBy, String notes);
@@ -67,5 +65,4 @@ public interface EmailService {
     // ========== PPE NOTIFICATIONS ==========
     void sendPpeRequestCreated(InventoryRequest request, String requesterEmail);
     void sendPpeStatusChanged(InventoryRequest request, String action, String performedBy, String notes);
-
 }

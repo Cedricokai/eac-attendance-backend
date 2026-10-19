@@ -42,6 +42,9 @@ public class LeaveService {
     private OverviewRepository overviewRepository;
 
     @Autowired
+    private ApprovedLeaveAttendanceService approvedLeaveAttendanceService;
+
+    @Autowired
     private LeaveSettingsRepository leaveSettingsRepository;
 
     @Autowired
@@ -613,6 +616,7 @@ public class LeaveService {
 
         if ("Approved".equalsIgnoreCase(leave.getHrStatus()) &&
                 "Approved".equalsIgnoreCase(leave.getStatus())) {
+            approvedLeaveAttendanceService.synchronize(leave);
             return leave;
         }
 
@@ -624,6 +628,7 @@ public class LeaveService {
         deductLeaveDays(leave);
 
         Leave updatedLeave = leaveRepository.save(leave);
+        approvedLeaveAttendanceService.synchronize(updatedLeave);
 
         try {
             emailService.sendHrApprovalNotification(updatedLeave, safeFeedback(feedback));
@@ -753,6 +758,7 @@ public class LeaveService {
                 deductLeaveDays(leave);
 
                 Leave approvedLeave = leaveRepository.save(leave);
+                approvedLeaveAttendanceService.synchronize(approvedLeave);
                 approvedLeaves.add(approvedLeave);
 
                 try {
@@ -1149,6 +1155,8 @@ public class LeaveService {
     }
 
     private boolean isLeaveTypeDeductible(String leaveType) {
+        Leave typeCheck = new Leave(); typeCheck.setLeaveType(leaveType);
+        if (typeCheck.isUnpaid()) return false;
         if (leaveType == null || leaveType.isBlank()) {
             return true;
         }

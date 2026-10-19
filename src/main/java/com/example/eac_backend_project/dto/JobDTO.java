@@ -25,6 +25,18 @@ public class JobDTO {
     private Double budget;
     private Double hourlyRate;
     private Integer standardWorkHours;
+    private java.time.LocalTime workStartTime;
+    private Double billingHours;
+    private Double expectedOvertimeHours;
+    private Boolean dailyHoursTopUpEnabled;
+    private Double dailyHoursTopUpThreshold;
+    private Double dailyHoursTopUpTarget;
+    private Double overtimeMultiplier;
+    private Boolean applyOvertimeMultiplierToHours;
+    private Boolean enforceMinimumOvertime;
+    private Boolean useConfiguredAttendanceHours;
+    private Double minimumOvertimeHours;
+    private Boolean autoApproveOvertime;
     private Job.JobStatus status;
     private List<EmployeeDTO> assignedEmployees;
     private Integer employeeCount;
@@ -65,6 +77,18 @@ public class JobDTO {
         this.budget = job.getBudget();
         this.hourlyRate = job.getHourlyRate();
         this.standardWorkHours = job.getStandardWorkHours();
+        this.workStartTime = job.getWorkStartTime();
+        this.billingHours = job.getBillingHours();
+        this.expectedOvertimeHours = job.getExpectedOvertimeHours();
+        this.dailyHoursTopUpEnabled = job.getDailyHoursTopUpEnabled();
+        this.dailyHoursTopUpThreshold = job.getDailyHoursTopUpThreshold();
+        this.dailyHoursTopUpTarget = job.getDailyHoursTopUpTarget();
+        this.overtimeMultiplier = job.getOvertimeMultiplier();
+        this.applyOvertimeMultiplierToHours = job.getApplyOvertimeMultiplierToHours();
+        this.enforceMinimumOvertime = job.getEnforceMinimumOvertime();
+        this.useConfiguredAttendanceHours = job.getUseConfiguredAttendanceHours();
+        this.minimumOvertimeHours = job.getMinimumOvertimeHours();
+        this.autoApproveOvertime = job.getAutoApproveOvertime();
         this.status = job.getStatus();
 
         // ========== ADD THESE BILLING REMINDER FIELDS ==========

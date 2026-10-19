@@ -89,7 +89,7 @@ public class ReportService {
 
         if (jobId != null) {
             Job job = jobRepository.findById(jobId).orElse(null);
-            jobName = job != null ? job.getName() : "Unknown Job";
+            jobName = job != null ? job.getName() : "Unknown Project";
             timesheets = timesheetRepository.findByJobId(jobId);
             allAttachments = jobAttachmentRepository.findByJobId(jobId);
         } else {
@@ -120,7 +120,7 @@ public class ReportService {
 
         // Create ZIP with PDF and matching attachments
         return createZipPackage(pdfBytes, attachmentsByDate,
-                "General_Report_" + (jobName != null ? jobName : "All_Jobs") + "_" + startDate + "_to_" + endDate);
+                "General_Report_" + (jobName != null ? jobName : "All_Projects") + "_" + startDate + "_to_" + endDate);
     }
 
     private Map<LocalDate, List<JobAttachment>> filterAttachmentsByDateRange(List<JobAttachment> attachments, LocalDate startDate, LocalDate endDate) {
@@ -379,7 +379,7 @@ public class ReportService {
 
         if (jobId != null && jobName != null) {
             info.add(Chunk.NEWLINE);
-            info.add(new Chunk("Job: ", boldFont));
+            info.add(new Chunk("Project: ", boldFont));
             info.add(new Chunk(jobName, normalFont));
         }
 

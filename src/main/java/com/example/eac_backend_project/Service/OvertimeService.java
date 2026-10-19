@@ -4,6 +4,7 @@ import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
 import com.example.eac_backend_project.Service.settings.SettingsService;
 import com.example.eac_backend_project.Service.email.EmailService;
 import com.example.eac_backend_project.dto.OvertimeListDTO;
+import com.example.eac_backend_project.entity.attendance.Attendance;
 import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.Overtime;
 import com.example.eac_backend_project.entity.attendance.Job;
@@ -30,7 +31,7 @@ import java.util.stream.Collectors;
 public class OvertimeService {
     private final OvertimeRepository overtimeRepository;
     private final EmployeeRepository employeeRepository;
-//    private final OverviewRepository overviewRepository;
+    //    private final OverviewRepository overviewRepository;
     private final SystemSettingsRepository systemSettingsRepository;
     private final SettingsService settingsService;
     private final EmailService emailService;
@@ -60,11 +61,13 @@ public class OvertimeService {
     public Overtime createOvertime(Overtime overtime) {
         try {
             System.out.println("Creating overtime for employee: " + overtime.getEmployee().getId());
-            System.out.println("Overtime data: " + overtime);
+            System.out.println("Overtime request date: " + overtime.getDate());
 
             // Validate employee exists
             Employee employee = employeeRepository.findById(overtime.getEmployee().getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+            overtime.setEmployee(employee);
 
             System.out.println("Employee found: " + employee.getId());
 
@@ -79,21 +82,27 @@ public class OvertimeService {
             overtime.setBaseHourlyRate(baseRate);
             System.out.println("Base hourly rate set to: " + baseRate);
 
-            // Validate and calculate overtime hours
-            if (overtime.getStartTime() != null && overtime.getEndTime() != null) {
+            // Attendance has already split the worked hours using the current schedule.
+            if (overtime.getAttendance() != null && overtime.getAttendance().getId() != null) {
+                overtime.setRawOvertimeHours(overtime.getAttendance().getOvertime() != null
+                        ? overtime.getAttendance().getOvertime() : 0.0);
+                applyConfiguredOvertimeHours(overtime);
+            } else if (overtime.getStartTime() != null && overtime.getEndTime() != null) {
                 calculateAndSetOvertimeHours(overtime);
                 System.out.println("Overtime hours calculated: " + overtime.getOvertimeHours());
             } else if (overtime.getOvertimeHours() == null) {
                 throw new IllegalArgumentException("Either start/end times or overtime hours must be provided");
+            } else {
+                applyConfiguredOvertimeHours(overtime);
             }
 
             // Calculate overtime pay with multiplier effect
             calculateOvertimePay(overtime);
             System.out.println("Overtime pay calculated: " + overtime.getCalculatedOvertimePay());
 
-            overtime.setEmployee(employee);
+            applyJobApprovalStatus(overtime);
 
-            // ✅ IMPORTANT: The multiplierAppliedToHours flag should already be set in the overtime object
+            // âœ… IMPORTANT: The multiplierAppliedToHours flag should already be set in the overtime object
             // from the frontend. Just make sure it's being saved.
             if (overtime.getMultiplierAppliedToHours() == null) {
                 overtime.setMultiplierAppliedToHours(false); // Default to false if not provided
@@ -205,6 +214,8 @@ public class OvertimeService {
             LocalDate startDate,
             LocalDate endDate,
             Long categoryId,
+            Long jobId,
+            boolean unassignedJob,
             String status,
             String search,
             Double minHours,
@@ -269,6 +280,8 @@ public class OvertimeService {
                 startDate,
                 endDate,
                 normalizedCategoryId,
+                jobId,
+                unassignedJob,
                 normalizedStatus,
                 normalizedSearch,
                 minHours,
@@ -279,7 +292,208 @@ public class OvertimeService {
         );
     }
 
+    private boolean applyHolidayAttendanceHours(Overtime overtime) {
+
+        if (overtime == null || overtime.getAttendance() == null) {
+            return false;
+        }
+
+        Attendance attendance = overtime.getAttendance();
+
+        if (!"Holiday Present".equalsIgnoreCase(attendance.getStatus())
+                && !"HP".equalsIgnoreCase(attendance.getStatus())) {
+            return false;
+        }
+
+        SystemSettings settings = getSystemSettings();
+
+        double holidayMultiplier = requireConfiguredMultiplier(
+                settings.getHolidayOvertimeMultiplier(),
+                "Holiday Overtime Multiplier"
+        );
+
+        double normalHours = attendance.getMinimumHour();
+
+        double attendanceOvertime =
+                attendance.getOvertime() != null
+                        ? attendance.getOvertime()
+                        : 0.0;
+
+        /*
+         * ==========================================================
+         * TIMESHEET SYNC
+         * ==========================================================
+         *
+         * Timesheet has ALREADY calculated the holiday overtime.
+         *
+         * Example received from Timesheet:
+         *
+         * NH = 8
+         * OT = 16
+         *
+         * Therefore:
+         *
+         * Final OT = 16
+         *
+         * DO NOT:
+         *
+         * (8 + 16) x 2 - 8
+         *
+         * because that would incorrectly become 40.
+         */
+        if ("TIMESHEET_SYNC".equalsIgnoreCase(attendance.getMethod())) {
+
+            double finalOvertimeHours = attendanceOvertime;
+
+            /*
+             * We can reverse the holiday formula to determine
+             * the original physical/raw OT.
+             *
+             * Original formula:
+             *
+             * Final OT =
+             * ((NH + Raw OT) x Holiday Multiplier) - NH
+             *
+             * Therefore:
+             *
+             * Raw OT =
+             * ((Final OT + NH) / Holiday Multiplier) - NH
+             *
+             * Example:
+             *
+             * NH       = 8
+             * Final OT = 16
+             * Holiday  = 2
+             *
+             * Raw OT =
+             * ((16 + 8) / 2) - 8
+             * = 12 - 8
+             * = 4
+             */
+            double rawOvertimeHours =
+                    Math.max(
+                            0.0,
+                            ((finalOvertimeHours + normalHours)
+                                    / holidayMultiplier)
+                                    - normalHours
+                    );
+
+            overtime.setRawOvertimeHours(rawOvertimeHours);
+
+            overtime.setOvertimeHours(finalOvertimeHours);
+
+            /*
+             * Holiday multiplier has already been included
+             * by Timesheet.
+             */
+            overtime.setMultiplierAppliedToHours(true);
+
+            /*
+             * Prevent another multiplier from being applied.
+             */
+            overtime.setOvertimeMultiplier(1.0);
+
+            System.out.println(
+                    "HP TIMESHEET_SYNC => NH: "
+                            + normalHours
+                            + ", Timesheet Final OT: "
+                            + finalOvertimeHours
+                            + ", Derived Raw OT: "
+                            + rawOvertimeHours
+                            + ", Holiday Multiplier: "
+                            + holidayMultiplier
+            );
+
+            return true;
+        }
+
+        /*
+         * ==========================================================
+         * NORMAL ATTENDANCE / BIOMETRIC / MANUAL
+         * ==========================================================
+         *
+         * For normal Attendance records, attendance.overtime
+         * still represents RAW overtime.
+         *
+         * Example:
+         *
+         * Worked = 12
+         * NH = 8
+         * Raw OT = 4
+         *
+         * Final OT =
+         * (12 x 2) - 8
+         * = 16
+         */
+
+        double rawOvertimeHours = attendanceOvertime;
+
+        double workedHours =
+                normalHours + rawOvertimeHours;
+
+        double finalOvertimeHours =
+                Math.max(
+                        0.0,
+                        (workedHours * holidayMultiplier)
+                                - normalHours
+                );
+
+        overtime.setRawOvertimeHours(
+                rawOvertimeHours
+        );
+
+        overtime.setOvertimeHours(
+                finalOvertimeHours
+        );
+
+        overtime.setMultiplierAppliedToHours(
+                true
+        );
+
+        /*
+         * Holiday multiplier is already represented
+         * in Final OT.
+         */
+        overtime.setOvertimeMultiplier(
+                1.0
+        );
+
+        System.out.println(
+                "HP ATTENDANCE => Worked: "
+                        + workedHours
+                        + ", NH: "
+                        + normalHours
+                        + ", Raw OT: "
+                        + rawOvertimeHours
+                        + ", Holiday Multiplier: "
+                        + holidayMultiplier
+                        + ", Final OT: "
+                        + finalOvertimeHours
+        );
+
+        return true;
+    }
+
+    private boolean usesFixedProjectHours(Overtime overtime) {
+        var attendance = overtime.getAttendance();
+        return ConfiguredJobAttendanceHours.applies(attendance)
+                && (attendance.getDate() == null || !ConfiguredJobAttendanceHours.isWeeklyOffDay(
+                        attendance, getSystemSettings().getWeekendDays()));
+    }
+
+    private boolean applyFixedJobOvertime(Overtime overtime) {
+        if (!usesFixedProjectHours(overtime)) return false;
+        Job job = overtime.getAttendance().getEmployee().getJob();
+        double rawHours = job.getMinimumOvertimeHours() != null ? job.getMinimumOvertimeHours() : 0.0;
+        overtime.setRawOvertimeHours(rawHours);
+        overtime.setMultiplierAppliedToHours(true);
+        overtime.setOvertimeHours(rawHours * determineOvertimeMultiplier(overtime));
+        return true;
+    }
+
     private void calculateAndSetOvertimeHours(Overtime overtime) {
+        if (applyHolidayAttendanceHours(overtime)) return;
+        if (applyFixedJobOvertime(overtime)) return;
         if (overtime.getStartTime() == null || overtime.getEndTime() == null) {
             throw new IllegalArgumentException("Both start time and end time must be provided");
         }
@@ -293,18 +507,28 @@ public class OvertimeService {
 
         double rawHours = ChronoUnit.MINUTES.between(start, end) / 60.0;
 
-        // ✅ Always store raw hours
+        // âœ… Always store raw hours
         overtime.setRawOvertimeHours(rawHours);
+
+        Job job = overtime.getEmployee() != null ? overtime.getEmployee().getJob() : null;
+        if (job != null && Boolean.TRUE.equals(job.getApplyOvertimeMultiplierToHours())) {
+            overtime.setMultiplierAppliedToHours(true);
+        }
+        double payableHours = rawHours;
+        if (job != null && Boolean.TRUE.equals(job.getEnforceMinimumOvertime())
+                && job.getMinimumOvertimeHours() != null && job.getMinimumOvertimeHours() > 0) {
+            payableHours = Math.max(payableHours, job.getMinimumOvertimeHours());
+        }
 
         double multiplier = determineOvertimeMultiplier(overtime);
 
-        if (Boolean.TRUE.equals(overtime.getMultiplierAppliedToHours())) {
+        if (usesMultiplierOnHours(overtime)) {
             // Apply multiplier to hours - THIS IS THE KEY CHANGE
             // When toggle is ON, multiply raw hours by the multiplier
-            overtime.setOvertimeHours(rawHours * multiplier);
+            overtime.setOvertimeHours(payableHours * multiplier);
         } else {
             // Keep hours raw (no multiplier applied to hours)
-            overtime.setOvertimeHours(rawHours);
+            overtime.setOvertimeHours(payableHours);
         }
     }
 
@@ -358,9 +582,9 @@ public class OvertimeService {
 
         overtime.setOvertimeMultiplier(multiplier);
 
-        if (Boolean.TRUE.equals(overtime.getMultiplierAppliedToHours())) {
-            // Hours already multiplied
-            overtime.setCalculatedOvertimePay(baseRate * overtime.getOvertimeHours());
+        if (usesMultiplierOnHours(overtime)) {
+            // ON mode only stores adjusted hours. Payroll calculates the amount.
+            overtime.setCalculatedOvertimePay(0.0);
         } else {
             // Multiplier applied to pay
             overtime.setCalculatedOvertimePay(baseRate * overtime.getOvertimeHours() * multiplier);
@@ -368,25 +592,213 @@ public class OvertimeService {
     }
 
     private double determineOvertimeMultiplier(Overtime overtime) {
+
+        if (overtime != null
+                && overtime.getAttendance() != null
+                && (
+                "Holiday Present".equalsIgnoreCase(
+                        overtime.getAttendance().getStatus()
+                )
+                        ||
+                        "HP".equalsIgnoreCase(
+                                overtime.getAttendance().getStatus()
+                        )
+        )) {
+
+            return 1.0;
+        }
+
+        if (usesFixedProjectHours(overtime)) {
+            Job job = overtime.getAttendance().getEmployee().getJob();
+
+            return requireConfiguredMultiplier(
+                    job.getOvertimeMultiplier() != null
+                            ? job.getOvertimeMultiplier()
+                            : getSystemSettings().getDefaultOvertimeMultiplier(),
+                    "Job or Default Overtime Multiplier"
+            );
+        }
+
         SystemSettings settings = getSystemSettings();
 
-        if (overtime.getDate().getDayOfWeek() == DayOfWeek.SUNDAY && Boolean.TRUE.equals(settings.getDoubleTimeOnSunday())) {
-            return settings.getSundayOvertimeMultiplier() != null ? settings.getSundayOvertimeMultiplier() : 2.0;
+        if (isWeekendAttendanceOvertime(overtime)) {
+            return requireConfiguredMultiplier(
+                    settings.getDefaultOvertimeMultiplier(),
+                    "Default Overtime Multiplier"
+            );
         }
 
-        if (isHoliday(overtime.getDate())) {
-            return settings.getHolidayOvertimeMultiplier() != null ? settings.getHolidayOvertimeMultiplier() : 2.5;
+        Job job =
+                overtime.getEmployee() != null
+                        ? overtime.getEmployee().getJob()
+                        : null;
+
+        if (job != null
+                && job.getOvertimeMultiplier() != null
+                && job.getOvertimeMultiplier() > 0) {
+
+            return job.getOvertimeMultiplier();
         }
 
-        if (Boolean.TRUE.equals(settings.getTimeAndHalfAfter8Hours()) && overtime.getOvertimeHours() != null && overtime.getOvertimeHours() > 8) {
-            return settings.getTimeAndHalfMultiplier() != null ? settings.getTimeAndHalfMultiplier() : 1.5;
+        if (usesMultiplierOnHours(overtime)) {
+            return requireConfiguredMultiplier(
+                    settings.getDefaultOvertimeMultiplier(),
+                    "Default Overtime Multiplier"
+            );
         }
 
-        // ✅ default: DB value first, then fallback
-        Double dbDefault = settings.getDefaultOvertimeMultiplier();
-        Double requestMultiplier = overtime.getOvertimeMultiplier();
+        if (overtime.getDate() != null
+                && overtime.getDate().getDayOfWeek() == DayOfWeek.SUNDAY
+                && Boolean.TRUE.equals(settings.getDoubleTimeOnSunday())) {
 
-        return requestMultiplier != null ? requestMultiplier : (dbDefault != null ? dbDefault : 1.5);
+            return requireConfiguredMultiplier(
+                    settings.getSundayOvertimeMultiplier(),
+                    "Sunday Overtime Multiplier"
+            );
+        }
+
+        if (overtime.getDate() != null
+                && isHoliday(overtime.getDate())) {
+
+            return requireConfiguredMultiplier(
+                    settings.getHolidayOvertimeMultiplier(),
+                    "Holiday Overtime Multiplier"
+            );
+        }
+
+        if (Boolean.TRUE.equals(settings.getTimeAndHalfAfter8Hours())
+                && overtime.getOvertimeHours() != null
+                && overtime.getOvertimeHours() > 8) {
+
+            return requireConfiguredMultiplier(
+                    settings.getTimeAndHalfMultiplier(),
+                    "Time & Half Multiplier"
+            );
+        }
+
+        Double requestMultiplier =
+                overtime.getOvertimeMultiplier();
+
+        if (requestMultiplier != null
+                && requestMultiplier > 0) {
+
+            return requestMultiplier;
+        }
+
+        return requireConfiguredMultiplier(
+                settings.getDefaultOvertimeMultiplier(),
+                "Default Overtime Multiplier"
+        );
+    }
+
+    private double requireConfiguredMultiplier(Double multiplier, String settingName) {
+        if (multiplier == null || multiplier <= 0) {
+            throw new IllegalStateException(
+                    settingName + " has not been configured in System Settings."
+            );
+        }
+        return multiplier;
+    }
+
+    private boolean usesMultiplierOnHours(Overtime overtime) {
+        if (overtime == null) {
+            return false;
+        }
+
+        // HP overtimeHours already contains:
+        // (NH x Holiday Multiplier) + (Raw OT x Default Multiplier).
+        if (overtime.getAttendance() != null
+                && "Holiday Present".equalsIgnoreCase(
+                overtime.getAttendance().getStatus()
+        )) {
+            return true;
+        }
+
+        // Weekend/off-day attendance always multiplies the overtime HOURS.
+        // The job toggle only decides the treatment of non-weekend overtime.
+        if (isWeekendAttendanceOvertime(overtime)) {
+            return true;
+        }
+
+        Job job =
+                overtime.getEmployee() != null
+                        ? overtime.getEmployee().getJob()
+                        : null;
+
+        return Boolean.TRUE.equals(overtime.getMultiplierAppliedToHours())
+                || (job != null
+                && Boolean.TRUE.equals(
+                job.getApplyOvertimeMultiplierToHours()
+        ));
+    }
+
+    private boolean isWeekendAttendanceOvertime(Overtime overtime) {
+        if (overtime == null || overtime.getEmployee() == null || overtime.getDate() == null) {
+            return false;
+        }
+
+        Employee employee = overtime.getEmployee();
+        com.example.eac_backend_project.entity.settings.Category category = employee.getCategory();
+
+        if (category == null || !Boolean.TRUE.equals(category.getWeekendAttendanceAsOvertime())) {
+            return false;
+        }
+
+        String offDays = employee.getWeeklyOffDays();
+        if (offDays == null || offDays.isBlank() || "INHERIT".equalsIgnoreCase(offDays)) {
+            offDays = category.getWeeklyOffDays();
+        }
+
+        if (offDays == null || offDays.isBlank() || "INHERIT".equalsIgnoreCase(offDays)) {
+            SystemSettings settings = getSystemSettings();
+            offDays = settings.getWeekendDays();
+        }
+
+        if (offDays == null || offDays.isBlank()) {
+            return false;
+        }
+
+        // Project convention: Sunday=0 ... Saturday=6.
+        int configuredDay = overtime.getDate().getDayOfWeek().getValue() % 7;
+        for (String value : offDays.split(",")) {
+            if (String.valueOf(configuredDay).equals(value.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyJobApprovalStatus(Overtime overtime) {
+        Job job = overtime.getEmployee() != null ? overtime.getEmployee().getJob() : null;
+        if (job != null && Boolean.TRUE.equals(job.getAutoApproveOvertime())) {
+            overtime.setStatus("Approved");
+        } else if (overtime.getStatus() == null || overtime.getStatus().isBlank()) {
+            overtime.setStatus("Pending");
+        }
+    }
+
+    private void applyConfiguredOvertimeHours(Overtime overtime) {
+        if (applyHolidayAttendanceHours(overtime)) return;
+        if (applyFixedJobOvertime(overtime)) return;
+        double rawHours = overtime.getRawOvertimeHours() != null
+                ? overtime.getRawOvertimeHours()
+                : overtime.getOvertimeHours();
+        overtime.setRawOvertimeHours(rawHours);
+
+        Job job = overtime.getEmployee() != null ? overtime.getEmployee().getJob() : null;
+        if (job != null && Boolean.TRUE.equals(job.getApplyOvertimeMultiplierToHours())) {
+            overtime.setMultiplierAppliedToHours(true);
+        }
+
+        double payableHours = rawHours;
+        if (job != null && Boolean.TRUE.equals(job.getEnforceMinimumOvertime())
+                && job.getMinimumOvertimeHours() != null && job.getMinimumOvertimeHours() > 0) {
+            payableHours = Math.max(payableHours, job.getMinimumOvertimeHours());
+        }
+
+        overtime.setOvertimeHours(usesMultiplierOnHours(overtime)
+                ? payableHours * determineOvertimeMultiplier(overtime)
+                : payableHours);
     }
 
 
@@ -515,8 +927,9 @@ public class OvertimeService {
         double baseRate = overtime.getBaseHourlyRate() != null ?
                 overtime.getBaseHourlyRate() : getDefaultHourlyRate();
         double hours = overtime.getOvertimeHours() != null ? overtime.getOvertimeHours() : 0.0;
-        double multiplier = overtime.getOvertimeMultiplier() != null ?
-                overtime.getOvertimeMultiplier() : 1.5;
+        double multiplier = overtime.getOvertimeMultiplier() != null && overtime.getOvertimeMultiplier() > 0
+                ? overtime.getOvertimeMultiplier()
+                : determineOvertimeMultiplier(overtime);
 
         return baseRate * hours * multiplier;
     }
@@ -577,6 +990,8 @@ public class OvertimeService {
                 Employee employee = employeeRepository.findById(overtime.getEmployee().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + overtime.getEmployee().getId()));
 
+                overtime.setEmployee(employee);
+
                 // Set base hourly rate
                 Double baseRate = employee.getMinimumRate() != null ?
                         employee.getMinimumRate() : getDefaultHourlyRate();
@@ -587,13 +1002,14 @@ public class OvertimeService {
                     calculateAndSetOvertimeHours(overtime);
                 } else if (overtime.getOvertimeHours() == null) {
                     throw new IllegalArgumentException("Either start/end times or overtime hours must be provided");
+                } else {
+                    applyConfiguredOvertimeHours(overtime);
                 }
 
                 // Calculate overtime pay
                 calculateOvertimePay(overtime);
 
-                // Set employee
-                overtime.setEmployee(employee);
+                applyJobApprovalStatus(overtime);
 
                 // Set default multiplier flag if not provided
                 if (overtime.getMultiplierAppliedToHours() == null) {
@@ -601,10 +1017,6 @@ public class OvertimeService {
                 }
 
                 // Set default status if not provided
-                if (overtime.getStatus() == null) {
-                    overtime.setStatus("Pending");
-                }
-
                 createdOvertimes.add(overtimeRepository.save(overtime));
 
             } catch (Exception e) {
@@ -645,6 +1057,8 @@ public class OvertimeService {
                 Employee employee = employeeRepository.findById(overtime.getEmployee().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + overtime.getEmployee().getId()));
 
+                overtime.setEmployee(employee);
+
                 // Set base hourly rate
                 Double baseRate = employee.getMinimumRate() != null ?
                         employee.getMinimumRate() : getDefaultHourlyRate();
@@ -655,19 +1069,17 @@ public class OvertimeService {
                     calculateAndSetOvertimeHours(overtime);
                 } else if (overtime.getOvertimeHours() == null) {
                     throw new IllegalArgumentException("Either start/end times or overtime hours must be provided");
+                } else {
+                    applyConfiguredOvertimeHours(overtime);
                 }
 
                 // Calculate overtime pay
                 calculateOvertimePay(overtime);
 
-                overtime.setEmployee(employee);
+                applyJobApprovalStatus(overtime);
 
                 if (overtime.getMultiplierAppliedToHours() == null) {
                     overtime.setMultiplierAppliedToHours(false);
-                }
-
-                if (overtime.getStatus() == null) {
-                    overtime.setStatus("Pending");
                 }
 
                 createdOvertimes.add(overtimeRepository.save(overtime));

@@ -12,6 +12,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -21,6 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/lunch/assignments")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN', 'HR', 'KITCHEN', 'MANAGER')")
 public class LunchAssignmentController {
 
     private final LunchAssignmentService assignmentService;
@@ -71,8 +74,17 @@ public class LunchAssignmentController {
         return ResponseEntity.ok(response);
     }
 
-    // ✅ FIXED: Return JSON response for employee self-service
+    @GetMapping("/my-weekly")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getMyWeeklyAssignment(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate) {
+        return ResponseEntity.ok().header("Cache-Control", "no-store")
+                .body(assignmentService.getMyWeeklyAssignment(userService.getCurrentUser(), startDate));
+    }
+
+    // Employee identity and cutoff are enforced by the service.
     @PostMapping("/my-weekly")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> updateMyWeeklyAssignment(@RequestBody WeeklyAssignmentDTO dto) {
         User currentUser = userService.getCurrentUser();
         assignmentService.saveWeeklyAssignmentForEmployee(dto, currentUser);
@@ -132,5 +144,10 @@ public class LunchAssignmentController {
         User currentUser = userService.getCurrentUser();
         assignmentService.activateAssignment(id, currentUser);
         return ResponseEntity.ok().build();
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleMealError(ResponseStatusException error) {
+        return ResponseEntity.status(error.getStatusCode()).body(Map.of("message", error.getReason()));
     }
 }

@@ -9,6 +9,9 @@ public class EmailConfigurationDTO {
     private List<String> overtimeRequestRecipients;
     private List<String> attendanceValidationRecipients;
     private List<String> leaveApprovalRecipients;
+    private List<String> accountRequestRecipients;
+    private List<String> supportRequestRecipients;
+    private List<String> pettyCashRequestRecipients;
 
     // Constructors
     public EmailConfigurationDTO() {}
@@ -61,4 +64,11 @@ public class EmailConfigurationDTO {
     public void setLeaveApprovalRecipients(List<String> leaveApprovalRecipients) {
         this.leaveApprovalRecipients = leaveApprovalRecipients;
     }
+
+    public List<String> getAccountRequestRecipients() { return accountRequestRecipients; }
+    public void setAccountRequestRecipients(List<String> accountRequestRecipients) { this.accountRequestRecipients = accountRequestRecipients; }
+    public List<String> getSupportRequestRecipients() { return supportRequestRecipients; }
+    public void setSupportRequestRecipients(List<String> supportRequestRecipients) { this.supportRequestRecipients = supportRequestRecipients; }
+    public List<String> getPettyCashRequestRecipients() { return pettyCashRequestRecipients; }
+    public void setPettyCashRequestRecipients(List<String> pettyCashRequestRecipients) { this.pettyCashRequestRecipients = pettyCashRequestRecipients; }
 }

@@ -14,6 +14,18 @@ import java.util.Optional;
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
+    @Query("""
+        SELECT e FROM Employee e LEFT JOIN FETCH e.category
+        WHERE e.active = true AND (e.startDate IS NULL OR e.startDate <= :date)
+        AND NOT EXISTS (SELECT a.id FROM Attendance a WHERE a.employee = e AND a.date = :date)
+        AND NOT EXISTS (SELECT l.id FROM Leave l WHERE l.employee = e AND l.startDate <= :date AND l.endDate >= :date)
+        AND NOT EXISTS (SELECT o.id FROM Overtime o WHERE o.employee = e AND o.date = :date)
+        AND NOT EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee = e AND t.date = :date)
+        ORDER BY e.id
+        """)
+    List<Employee> findEligibleForHoliday(@Param("date") LocalDate date);
+
+
     boolean existsByEmployeeId(String employeeId);
 
     Optional<Employee> findByEmployeeIdIgnoreCase(String employeeId);

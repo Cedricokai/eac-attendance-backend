@@ -33,31 +33,30 @@ public class AttendanceAutoReportService {
         this.settingsRepository = settingsRepository;
     }
 
-    public void sendDailyAutoReportIfEnabled(LocalDate reportDate) {
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public boolean sendScheduledReport(LocalDate reportDate, boolean morning) {
         AttendanceReportScheduleSettings settings = getOrCreateSettings();
-        if (!settings.isEnabled()) return;
+        if (!settings.isEnabled()) return false;
 
         List<String> recipients = parseEmails(settings.getRecipientEmails());
-        if (recipients.isEmpty()) return;
+        if (recipients.isEmpty()) return false;
 
-        List<Attendance> records;
-        if (settings.isSendOnlyExceptions()) {
-            records = attendanceRepository.findLateAndAbsentByDate(reportDate);
-        } else {
-            records = attendanceRepository.findByDate(reportDate);
-        }
-
-        if (records == null || records.isEmpty()) return;
+        List<String> included = settings.includedStatuses(morning);
+        if (included.isEmpty()) return false;
+        List<Attendance> daily = attendanceRepository.findByDate(reportDate);
+        List<Attendance> records = (daily == null ? List.<Attendance>of() : daily).stream()
+                .filter(a -> included.stream().anyMatch(status -> status.equalsIgnoreCase(a.getStatus())))
+                .collect(Collectors.toList());
 
         byte[] xlsx = null;
-        String filename = "attendance_report_" + reportDate + ".xlsx";
+        String filename = (morning ? "morning_" : "evening_") + String.join("_", included).toLowerCase(java.util.Locale.ROOT) + "_" + reportDate + ".xlsx";
 
         if (settings.isAttachExcel()) {
             xlsx = excelService.buildAttendanceReportExcel(records, reportDate, reportDate);
         }
 
-        String subject = "Daily Attendance Report (" + reportDate + ")";
-        String html = buildSummaryHtml(records, reportDate);
+        String subject = (morning ? "Morning" : "Evening") + " Attendance Report - " + String.join(", ", included) + " (" + reportDate + ")";
+        String html = buildSummaryHtml(records, reportDate, morning, settings.isAttachExcel(), included);
 
         for (String to : recipients) {
             if (settings.isAttachExcel() && xlsx != null) {
@@ -72,6 +71,7 @@ public class AttendanceAutoReportService {
                 emailService.sendCustomEmail(to, subject, html);
             }
         }
+        return true;
     }
 
     private AttendanceReportScheduleSettings getOrCreateSettings() {
@@ -92,21 +92,18 @@ public class AttendanceAutoReportService {
                 .collect(Collectors.toList());
     }
 
-    private String buildSummaryHtml(List<Attendance> records, LocalDate date) {
-        long late = records.stream().filter(a -> "Late".equalsIgnoreCase(a.getStatus())).count();
-        long absent = records.stream().filter(a -> "Absent".equalsIgnoreCase(a.getStatus())).count();
-
+    private String buildSummaryHtml(List<Attendance> records, LocalDate date, boolean morning, boolean attached, List<String> included) {
+        String counts = included.stream().map(status -> "<li>" + status + ": "
+                + records.stream().filter(a -> status.equalsIgnoreCase(a.getStatus())).count() + "</li>")
+                .collect(Collectors.joining());
+        long pending = records.stream().filter(a -> a.getCheckIn() != null && a.getCheckOut() == null).count();
         return """
-                <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5">
-                  <h2 style="margin:0 0 8px 0;">Daily Attendance Exceptions</h2>
-                  <p style="margin:0 0 8px 0;">Date: <strong>%s</strong></p>
-                  <ul style="margin:0 0 12px 18px;">
-                    <li><strong>Late:</strong> %d</li>
-                    <li><strong>Absent:</strong> %d</li>
-                    <li><strong>Total records attached:</strong> %d</li>
-                  </ul>
-                  <p style="margin:0;">Excel attachment contains the detailed list.</p>
-                </div>
-                """.formatted(date, late, absent, records.size());
+            <div style="font-family:Arial,sans-serif;line-height:1.5">
+              <h2>%s</h2><p>Attendance date: <strong>%s</strong></p>
+              <p>Included statuses: %s</p><ul>%s<li>Checkout pending: %d</li><li>Total records: %d</li></ul>
+              <p>%s</p><p>Absences reflect configured category cutoffs. Night-shift attendance is dated by shift start; a checkout may still be pending when this report is sent.</p>
+            </div>
+            """.formatted(morning ? "Morning Attendance Report" : "Evening Attendance Report", date, String.join(", ", included), counts, pending, records.size(),
+                    attached ? "The Excel attachment contains the detailed list." : "Excel attachment is disabled.");
     }
 }

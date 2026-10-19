@@ -4,6 +4,7 @@ import com.example.eac_backend_project.entity.inventory.CostCenter;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.ToString;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -68,6 +69,24 @@ public class Job {
     @Column(name = "standard_work_hours")
     private Integer standardWorkHours = 8;
 
+    @Column(name = "work_start_time")
+    private java.time.LocalTime workStartTime;
+
+    @Column(name = "billing_hours")
+    private Double billingHours;
+
+    @Column(name = "expected_overtime_hours")
+    private Double expectedOvertimeHours = 0.0;
+
+    @Column(name = "daily_hours_top_up_enabled", columnDefinition = "boolean default false")
+    private Boolean dailyHoursTopUpEnabled = false;
+    @Column(name = "daily_hours_top_up_threshold")
+    private Double dailyHoursTopUpThreshold = 9.3;
+    @Column(name = "daily_hours_top_up_target")
+    private Double dailyHoursTopUpTarget = 10.0;
+
+
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private JobStatus status = JobStatus.ACTIVE;
@@ -80,15 +99,19 @@ public class Job {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supervisor_id")
+    @ToString.Exclude
     private Employee supervisor;
 
     @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
     private List<JobProduct> products = new ArrayList<>();
 
     @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
     private List<JobAttachment> attachments = new ArrayList<>();
 
     @OneToMany(mappedBy = "job")
+    @ToString.Exclude
     private List<Employee> employees = new ArrayList<>();
 
     @Column(name = "bill_on_15_next_month", nullable = false)
@@ -99,6 +122,21 @@ public class Job {
 
     @Column(name = "overtime_multiplier")
     private Double overtimeMultiplier;
+
+    @Column(name = "apply_overtime_multiplier_to_hours", nullable = false, columnDefinition = "boolean default false")
+    private Boolean applyOvertimeMultiplierToHours = false;
+
+    @Column(name = "enforce_minimum_overtime", nullable = false, columnDefinition = "boolean default false")
+    private Boolean enforceMinimumOvertime = false;
+
+    @Column(name = "use_configured_attendance_hours", nullable = false, columnDefinition = "boolean default false")
+    private Boolean useConfiguredAttendanceHours = false;
+
+    @Column(name = "minimum_overtime_hours")
+    private Double minimumOvertimeHours;
+
+    @Column(name = "auto_approve_overtime", nullable = false, columnDefinition = "boolean default false")
+    private Boolean autoApproveOvertime = false;
 
     @Lob
     @Column(name = "job_notification_emails", columnDefinition = "TEXT")
@@ -272,6 +310,11 @@ public class Job {
         this.standardWorkHours = standardWorkHours;
     }
 
+    public Double getBillingHours() { return billingHours; }
+    public void setBillingHours(Double billingHours) { this.billingHours = billingHours; }
+    public Double getExpectedOvertimeHours() { return expectedOvertimeHours; }
+    public void setExpectedOvertimeHours(Double expectedOvertimeHours) { this.expectedOvertimeHours = expectedOvertimeHours; }
+
     public JobStatus getStatus() {
         return status;
     }
@@ -349,6 +392,46 @@ public class Job {
 
     public void setBillingAnchorDay(Integer billingAnchorDay) {
         this.billingAnchorDay = billingAnchorDay;
+    }
+
+    public Double getOvertimeMultiplier() {
+        return overtimeMultiplier;
+    }
+
+    public void setOvertimeMultiplier(Double overtimeMultiplier) {
+        this.overtimeMultiplier = overtimeMultiplier;
+    }
+
+    public Boolean getApplyOvertimeMultiplierToHours() {
+        return applyOvertimeMultiplierToHours;
+    }
+
+    public void setApplyOvertimeMultiplierToHours(Boolean applyOvertimeMultiplierToHours) {
+        this.applyOvertimeMultiplierToHours = applyOvertimeMultiplierToHours;
+    }
+
+    public Boolean getEnforceMinimumOvertime() {
+        return enforceMinimumOvertime;
+    }
+
+    public void setEnforceMinimumOvertime(Boolean enforceMinimumOvertime) {
+        this.enforceMinimumOvertime = enforceMinimumOvertime;
+    }
+
+    public Double getMinimumOvertimeHours() {
+        return minimumOvertimeHours;
+    }
+
+    public void setMinimumOvertimeHours(Double minimumOvertimeHours) {
+        this.minimumOvertimeHours = minimumOvertimeHours;
+    }
+
+    public Boolean getAutoApproveOvertime() {
+        return autoApproveOvertime;
+    }
+
+    public void setAutoApproveOvertime(Boolean autoApproveOvertime) {
+        this.autoApproveOvertime = autoApproveOvertime;
     }
 
     public String getJobNotificationEmails() {

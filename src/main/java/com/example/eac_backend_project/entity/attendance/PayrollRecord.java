@@ -8,6 +8,25 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 public class PayrollRecord {
+    @Column(columnDefinition = "LONGTEXT")
+    private String projectEarningsSnapshot;
+    @Column(columnDefinition = "LONGTEXT")
+    private String payrollWorkDates;
+    private Double appliedEffectivePayrollRate;
+    private java.time.LocalDate appliedEffectivePayrollRateFrom;
+    private java.time.LocalDate appliedEffectivePayrollRateTo;
+    private Long appliedEffectivePayrollJobId;
+    private Double normalRateHours;
+    private Double effectiveRateHours;
+    private Double normalRateOvertimeHours;
+    private Double effectiveRateOvertimeHours;
+    private Double precalculatedHourlyBasicPay;
+    private Boolean rateSnapshotSaved;
+    private Double appliedMinimumRate;
+    private Double appliedHourlyRate;
+    private Double appliedEmployeeRate;
+    private Double appliedMonthlySalary;
+    private Double appliedOvertimeRate;
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

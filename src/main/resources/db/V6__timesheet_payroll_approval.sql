@@ -1,0 +1,11 @@
+ALTER TABLE attendance ADD COLUMN timesheet_approved_work VARCHAR(255) NULL;
+ALTER TABLE attendance ADD COLUMN timesheet_approval_fingerprint VARCHAR(255) NULL;
+ALTER TABLE timesheets ADD COLUMN payroll_approval_status VARCHAR(255) DEFAULT 'DRAFT';
+ALTER TABLE timesheets ADD COLUMN payroll_approved_by VARCHAR(255) NULL;
+ALTER TABLE timesheets ADD COLUMN payroll_approved_at DATETIME NULL;
+ALTER TABLE timesheets ADD COLUMN payroll_submitted_by VARCHAR(255) NULL;
+ALTER TABLE timesheets ADD COLUMN payroll_submitted_at DATETIME NULL;
+ALTER TABLE timesheets ADD COLUMN payroll_decision_reason VARCHAR(255) NULL;
+ALTER TABLE timesheets ADD COLUMN payroll_review_fingerprint VARCHAR(255) NULL;
+ALTER TABLE timesheets ADD COLUMN approval_version BIGINT DEFAULT 0;
+UPDATE timesheets SET payroll_approval_status = 'DRAFT' WHERE payroll_approval_status IS NULL;

@@ -11,6 +11,54 @@ import java.util.List;
 
 @Repository
 public interface LeaveRepository extends JpaRepository<Leave, Long> {
+    @Query("SELECT l FROM Leave l JOIN FETCH l.employee e LEFT JOIN FETCH e.category LEFT JOIN FETCH e.job WHERE l.status = 'Approved' AND l.startDate <= :end AND l.endDate >= :start ORDER BY l.id")
+    List<Leave> findApprovedForAttendanceReport(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+
+    @Query("""
+        SELECT new com.example.eac_backend_project.dto.LeaveListDTO(
+            l.id,
+            l.startDate,
+            l.endDate,
+            l.leaveType,
+            l.reason,
+            l.status,
+            l.supervisorStatus,
+            l.supervisorFeedback,
+            l.supervisorActionDate,
+            l.plannerStatus,
+            l.plannerFeedback,
+            l.plannerActionDate,
+            l.hrStatus,
+            l.hrFeedback,
+            l.hrActionDate,
+            l.createdAt,
+            l.submittedDate,
+            l.attachmentFileName,
+            l.attachmentFileType,
+            l.attachmentFileSize,
+            l.totalLeaveHours,
+            l.weekendCalculationMethod,
+            e.id,
+            e.employeeId,
+            e.firstName,
+            e.lastName,
+            e.department,
+            e.email,
+            c.id,
+            c.name,
+            c.excludeWeekendsFromLeave,
+            c.annualLeaveDays,
+            c.standardRateHours
+        )
+        FROM Leave l
+        LEFT JOIN l.employee e
+        LEFT JOIN e.category c
+        WHERE (:employeeId IS NULL OR e.id = :employeeId)
+        ORDER BY l.startDate DESC, l.id DESC
+        """)
+    List<com.example.eac_backend_project.dto.LeaveListDTO> findListRows(@Param("employeeId") Long employeeId);
+
 
     List<Leave> findByEmployeeId(Long employeeId);
 

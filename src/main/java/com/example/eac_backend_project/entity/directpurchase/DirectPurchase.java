@@ -15,6 +15,11 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DirectPurchase {
+    private Long inventoryRequestId;
+    private String inventoryRequestNumber;
+    private Long createdByUserId;
+    private String createdByName;
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

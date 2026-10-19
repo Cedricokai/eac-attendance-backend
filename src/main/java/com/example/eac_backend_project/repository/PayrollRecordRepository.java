@@ -17,6 +17,8 @@ public interface PayrollRecordRepository extends JpaRepository<PayrollRecord, Lo
 
     // Existing methods
     List<PayrollRecord> findByPeriodId(Long periodId);
+    @Query("SELECT r FROM PayrollRecord r JOIN FETCH r.period p JOIN FETCH r.employee e WHERE p.id <> :periodId AND p.startDate <= :end AND p.endDate >= :start AND r.status IN ('Generated', 'Processed')")
+    List<PayrollRecord> findWorkReservations(@Param("periodId") Long periodId, @Param("start") LocalDate start, @Param("end") LocalDate end);
 
     List<PayrollRecord> findByEmployeeIdOrderByPeriodStartDateDesc(Long employeeId);
 

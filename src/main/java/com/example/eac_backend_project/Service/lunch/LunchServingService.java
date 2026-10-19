@@ -64,12 +64,13 @@ public class LunchServingService {
 
         // Validate: Check if employee has an active lunch assignment for today
         Optional<LunchAssignment> assignment = assignmentRepository.findActiveAssignmentByEmployeeAndDate(employeeId, date);
-        if (assignment.isEmpty()) {
+        if (assignment.isEmpty() || assignment.get().getMeal() == null) {
             throw new RuntimeException("Employee does not have an active lunch assignment for today");
         }
 
         // Validate: Employee must be present
-        if (!isPresent) {
+        if (!attendanceRepository.findByEmployeeIdAndDate(employeeId, date)
+                .filter(LunchAttendancePolicy::isPresent).isPresent()) {
             throw new RuntimeException("Employee is not present today, cannot serve lunch");
         }
 
@@ -83,7 +84,7 @@ public class LunchServingService {
         serving.setServedBy(servedBy);
         serving.setDevice(device);
         serving.setRemarks(remarks);
-        serving.setAttendanceStatus(isPresent ? "PRESENT" : "ABSENT");
+        serving.setAttendanceStatus("PRESENT");
         serving.setLocation(location != null ? location : "MKV");
 
         LunchServing saved = servingRepository.save(serving);
@@ -139,7 +140,7 @@ public class LunchServingService {
         List<Attendance> attendances = attendanceRepository.findByDate(date);
         long totalEmployees = attendances.size();
         long presentCount = attendances.stream()
-                .filter(a -> a.getCheckIn() != null)
+                .filter(LunchAttendancePolicy::isPresent)
                 .count();
         long absentCount = totalEmployees - presentCount;
 
@@ -244,7 +245,7 @@ public class LunchServingService {
 
         List<Attendance> attendances = attendanceRepository.findByDate(today);
         long presentCount = attendances.stream()
-                .filter(a -> a.getCheckIn() != null)
+                .filter(LunchAttendancePolicy::isPresent)
                 .count();
 
         List<LunchAssignment> assignments = assignmentRepository.findActiveAssignmentsForDate(today);

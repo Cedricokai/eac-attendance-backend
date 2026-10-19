@@ -6,6 +6,7 @@ import com.example.eac_backend_project.Service.PageService;
 import com.example.eac_backend_project.dto.OvertimeListDTO;
 import com.example.eac_backend_project.dto.OvertimeRequestDTO;
 import com.example.eac_backend_project.entity.attendance.Employee;
+import com.example.eac_backend_project.entity.attendance.Job;
 import com.example.eac_backend_project.entity.attendance.Overtime;
 import com.example.eac_backend_project.entity.attendance.Overview;
 import com.example.eac_backend_project.entity.inventory.User;
@@ -95,6 +96,9 @@ public class OvertimeController {
             @RequestParam(required = false)
             Long categoryId,
 
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(defaultValue = "false") boolean unassignedJob,
+
             @RequestParam(defaultValue = "")
             String status,
 
@@ -125,6 +129,8 @@ public class OvertimeController {
                             startDate,
                             endDate,
                             categoryId,
+                            jobId,
+                            unassignedJob,
                             status,
                             search,
                             minHours,
@@ -1617,6 +1623,17 @@ public class OvertimeController {
             );
         }
 
+        if (employee.getJob() != null) {
+            Job job = employee.getJob();
+            response.setJobId(job.getId());
+            response.setJobName(job.getName());
+            response.setJobOvertimeMultiplier(job.getOvertimeMultiplier());
+            response.setApplyOvertimeMultiplierToHours(job.getApplyOvertimeMultiplierToHours());
+            response.setEnforceMinimumOvertime(job.getEnforceMinimumOvertime());
+            response.setMinimumOvertimeHours(job.getMinimumOvertimeHours());
+            response.setAutoApproveOvertime(job.getAutoApproveOvertime());
+        }
+
         return response;
     }
 
@@ -1818,6 +1835,13 @@ public class OvertimeController {
 
         private Long categoryId;
         private String categoryName;
+        private Long jobId;
+        private String jobName;
+        private Double jobOvertimeMultiplier;
+        private Boolean applyOvertimeMultiplierToHours;
+        private Boolean enforceMinimumOvertime;
+        private Double minimumOvertimeHours;
+        private Boolean autoApproveOvertime;
 
         private Long attendanceId;
 
@@ -1936,6 +1960,21 @@ public class OvertimeController {
             this.categoryName =
                     categoryName;
         }
+
+        public Long getJobId() { return jobId; }
+        public void setJobId(Long jobId) { this.jobId = jobId; }
+        public String getJobName() { return jobName; }
+        public void setJobName(String jobName) { this.jobName = jobName; }
+        public Double getJobOvertimeMultiplier() { return jobOvertimeMultiplier; }
+        public void setJobOvertimeMultiplier(Double value) { this.jobOvertimeMultiplier = value; }
+        public Boolean getApplyOvertimeMultiplierToHours() { return applyOvertimeMultiplierToHours; }
+        public void setApplyOvertimeMultiplierToHours(Boolean value) { this.applyOvertimeMultiplierToHours = value; }
+        public Boolean getEnforceMinimumOvertime() { return enforceMinimumOvertime; }
+        public void setEnforceMinimumOvertime(Boolean value) { this.enforceMinimumOvertime = value; }
+        public Double getMinimumOvertimeHours() { return minimumOvertimeHours; }
+        public void setMinimumOvertimeHours(Double value) { this.minimumOvertimeHours = value; }
+        public Boolean getAutoApproveOvertime() { return autoApproveOvertime; }
+        public void setAutoApproveOvertime(Boolean value) { this.autoApproveOvertime = value; }
 
         public Long getAttendanceId() {
             return attendanceId;
@@ -2078,6 +2117,13 @@ public class OvertimeController {
         private Double minimumRate;
         private Long categoryId;
         private String categoryName;
+        private Long jobId;
+        private String jobName;
+        private Double jobOvertimeMultiplier;
+        private Boolean applyOvertimeMultiplierToHours;
+        private Boolean enforceMinimumOvertime;
+        private Double minimumOvertimeHours;
+        private Boolean autoApproveOvertime;
 
         public Long getId() {
             return id;
@@ -2147,6 +2193,21 @@ public class OvertimeController {
             this.categoryName =
                     categoryName;
         }
+
+        public Long getJobId() { return jobId; }
+        public void setJobId(Long jobId) { this.jobId = jobId; }
+        public String getJobName() { return jobName; }
+        public void setJobName(String jobName) { this.jobName = jobName; }
+        public Double getJobOvertimeMultiplier() { return jobOvertimeMultiplier; }
+        public void setJobOvertimeMultiplier(Double value) { this.jobOvertimeMultiplier = value; }
+        public Boolean getApplyOvertimeMultiplierToHours() { return applyOvertimeMultiplierToHours; }
+        public void setApplyOvertimeMultiplierToHours(Boolean value) { this.applyOvertimeMultiplierToHours = value; }
+        public Boolean getEnforceMinimumOvertime() { return enforceMinimumOvertime; }
+        public void setEnforceMinimumOvertime(Boolean value) { this.enforceMinimumOvertime = value; }
+        public Double getMinimumOvertimeHours() { return minimumOvertimeHours; }
+        public void setMinimumOvertimeHours(Double value) { this.minimumOvertimeHours = value; }
+        public Boolean getAutoApproveOvertime() { return autoApproveOvertime; }
+        public void setAutoApproveOvertime(Boolean value) { this.autoApproveOvertime = value; }
     }
 
     public static class ValidateOvertimeRequest {

@@ -125,6 +125,25 @@ public class JobController {
         }
     }
 
+    public static class JobOvertimeSettingsRequest {
+        private Double overtimeMultiplier;
+        private Boolean applyOvertimeMultiplierToHours;
+        private Boolean enforceMinimumOvertime;
+        private Double minimumOvertimeHours;
+        private Boolean autoApproveOvertime;
+
+        public Double getOvertimeMultiplier() { return overtimeMultiplier; }
+        public void setOvertimeMultiplier(Double overtimeMultiplier) { this.overtimeMultiplier = overtimeMultiplier; }
+        public Boolean getApplyOvertimeMultiplierToHours() { return applyOvertimeMultiplierToHours; }
+        public void setApplyOvertimeMultiplierToHours(Boolean value) { this.applyOvertimeMultiplierToHours = value; }
+        public Boolean getEnforceMinimumOvertime() { return enforceMinimumOvertime; }
+        public void setEnforceMinimumOvertime(Boolean value) { this.enforceMinimumOvertime = value; }
+        public Double getMinimumOvertimeHours() { return minimumOvertimeHours; }
+        public void setMinimumOvertimeHours(Double minimumOvertimeHours) { this.minimumOvertimeHours = minimumOvertimeHours; }
+        public Boolean getAutoApproveOvertime() { return autoApproveOvertime; }
+        public void setAutoApproveOvertime(Boolean autoApproveOvertime) { this.autoApproveOvertime = autoApproveOvertime; }
+    }
+
     // ==================== JOB CRUD ENDPOINTS ====================
 
     @GetMapping
@@ -191,6 +210,21 @@ public class JobController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error updating job: " + e.getMessage());
         }
+    }
+
+    @PutMapping("/{id}/overtime-settings")
+    public ResponseEntity<JobDTO> updateJobOvertimeSettings(
+            @PathVariable Long id,
+            @RequestBody JobOvertimeSettingsRequest request) {
+        Job updated = jobService.updateOvertimeSettings(
+                id,
+                request.getOvertimeMultiplier(),
+                request.getApplyOvertimeMultiplierToHours(),
+                request.getEnforceMinimumOvertime(),
+                request.getMinimumOvertimeHours(),
+                request.getAutoApproveOvertime()
+        );
+        return ResponseEntity.ok(new JobDTO(updated));
     }
 
 

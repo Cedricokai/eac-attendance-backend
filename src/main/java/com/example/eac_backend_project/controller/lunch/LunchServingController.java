@@ -94,8 +94,7 @@ public class LunchServingController {
                     );
 
             boolean present =
-                    attendance.isPresent()
-                            && attendance.get().getCheckIn() != null;
+                    attendance.filter(com.example.eac_backend_project.Service.lunch.LunchAttendancePolicy::isPresent).isPresent();
 
             if (!present) {
                 return ResponseEntity

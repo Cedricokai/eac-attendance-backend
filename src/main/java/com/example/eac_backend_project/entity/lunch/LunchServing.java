@@ -37,6 +37,7 @@ public class LunchServing {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "served_by", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private User servedBy;
 
     private String device;

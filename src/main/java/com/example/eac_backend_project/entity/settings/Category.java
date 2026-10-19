@@ -7,6 +7,17 @@ import lombok.Data;
 @Table(name = "categories")
 @Data
 public class Category {
+    // Sunday=0 through Saturday=6; null/INHERIT uses the category for employees.
+    @Column(name = "weekly_off_days")
+    private String weeklyOffDays;
+
+    public void setWeeklyOffDays(String value) {
+        if (value != null && !value.equals("INHERIT") && !value.matches("[0-6](,[0-6])*|")) {
+            throw new IllegalArgumentException("Invalid weekly off days");
+        }
+        this.weeklyOffDays = value;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,6 +32,8 @@ public class Category {
     private Boolean useNonTaxableAllowances = false;
 
     private String workStartTime = "09:00";
+    private java.time.LocalTime absenceCutoffTime;
+    private Boolean overnightShift = false;
 
     @Column(name = "exclude_weekends_from_leave")
     private Boolean excludeWeekendsFromLeave = true;
@@ -45,6 +58,9 @@ public class Category {
 
     @Column(name = "apply_withholding_tax", columnDefinition = "boolean default false")
     private Boolean applyWithholdingTax = false;
+
+    @Column(name = "weekend_attendance_as_overtime", columnDefinition = "boolean default false")
+    private Boolean weekendAttendanceAsOvertime = false;
 
     // Constructors
     public Category() {}

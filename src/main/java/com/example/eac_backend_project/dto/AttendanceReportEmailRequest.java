@@ -22,6 +22,10 @@ public class AttendanceReportEmailRequest {
 
     private String subject;
     private String message;
+    private Long jobId;
+    private List<Long> employeeIds;
+    private List<Long> excludeOvertimeEmployeeIds;
+    private Boolean includeOvertime = true;
 
     public AttendanceReportEmailRequest() {}
 
@@ -64,4 +68,13 @@ public class AttendanceReportEmailRequest {
     public void setMessage(String message) {
         this.message = message;
     }
+
+    public Long getJobId() { return jobId; }
+    public void setJobId(Long jobId) { this.jobId = jobId; }
+    public List<Long> getEmployeeIds() { return employeeIds; }
+    public void setEmployeeIds(List<Long> employeeIds) { this.employeeIds = employeeIds; }
+    public List<Long> getExcludeOvertimeEmployeeIds() { return excludeOvertimeEmployeeIds; }
+    public void setExcludeOvertimeEmployeeIds(List<Long> excludeOvertimeEmployeeIds) { this.excludeOvertimeEmployeeIds = excludeOvertimeEmployeeIds; }
+    public Boolean getIncludeOvertime() { return includeOvertime; }
+    public void setIncludeOvertime(Boolean includeOvertime) { this.includeOvertime = includeOvertime; }
 }

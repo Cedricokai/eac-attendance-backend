@@ -186,8 +186,13 @@ public class DirectPurchaseService {
     }
 
     private DirectPurchaseResponseDTO toResponseDTO(DirectPurchase purchase) {
+        InventoryFinanceAccess.require(purchase.getInventoryRequestId());
         DirectPurchaseResponseDTO dto = new DirectPurchaseResponseDTO();
 
+        dto.setInventoryRequestId(purchase.getInventoryRequestId());
+        dto.setInventoryRequestNumber(purchase.getInventoryRequestNumber());
+        dto.setCreatedByUserId(purchase.getCreatedByUserId());
+        dto.setCreatedByName(purchase.getCreatedByName());
         dto.setId(purchase.getId());
         dto.setRequestNumber(purchase.getRequestNumber());
         dto.setRequestDate(purchase.getRequestDate());
@@ -335,7 +340,12 @@ public class DirectPurchaseService {
             );
         }
 
-        User requester = getCurrentUser();
+        return createForInventory(dto, getCurrentUser(), null, null);
+    }
+
+    @Transactional
+    public DirectPurchaseResponseDTO createForInventory(DirectPurchaseRequestDTO dto, User requester, Long inventoryId, String inventoryNumber) {
+        User actor = getCurrentUser();
         User accountant = requireEnabledUser(
                 dto.getAccountantUserId(),
                 "ACCOUNTANT"
@@ -343,6 +353,10 @@ public class DirectPurchaseService {
 
         DirectPurchase purchase = new DirectPurchase();
 
+        purchase.setInventoryRequestId(inventoryId);
+        purchase.setInventoryRequestNumber(inventoryNumber);
+        purchase.setCreatedByUserId(actor.getId());
+        purchase.setCreatedByName(actor.getName());
         purchase.setRequestNumber(generateRequestNumber());
         purchase.setRequestDate(
                 dto.getRequestDate() == null
@@ -406,6 +420,7 @@ public class DirectPurchaseService {
 
     public List<DirectPurchaseResponseDTO> getAllRequests() {
         return repository.findAll().stream()
+                .filter(p -> InventoryFinanceAccess.visible(p.getInventoryRequestId()))
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -689,6 +704,7 @@ public class DirectPurchaseService {
             );
         }
 
+        if(purchase.getInventoryRequestId()!=null) throw new IllegalStateException("Reject linked purchases to retain the inventory audit trail");
         repository.delete(purchase);
     }
 

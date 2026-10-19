@@ -27,6 +27,25 @@ public class AttendanceReportScheduleController {
     public ResponseEntity<AttendanceReportScheduleSettings> update(@RequestBody AttendanceReportScheduleSettings incoming) {
         AttendanceReportScheduleSettings s = repo.findAll().stream().findFirst().orElseGet(() -> repo.save(new AttendanceReportScheduleSettings()));
 
+        if (incoming.isEnabled() && Boolean.TRUE.equals(incoming.getMorningReportEnabled()) && incoming.getMorningReportTime() == null) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Choose a morning report time.");
+        }
+        if (incoming.isEnabled() && (incoming.getRecipientEmails() == null || incoming.getRecipientEmails().isBlank())) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Enter report recipients.");
+        }
+        s.setMorningReportEnabled(Boolean.TRUE.equals(incoming.getMorningReportEnabled()));
+        s.setMorningReportTime(incoming.getMorningReportTime());
+        s.setEveningReportEnabled(!Boolean.FALSE.equals(incoming.getEveningReportEnabled()));
+        if (incoming.isEnabled() && ((Boolean.TRUE.equals(incoming.getMorningReportEnabled()) && incoming.includedStatuses(true).isEmpty())
+                || (!Boolean.FALSE.equals(incoming.getEveningReportEnabled()) && incoming.includedStatuses(false).isEmpty()))) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Select at least one attendance status for each enabled report.");
+        }
+        s.setMorningIncludePresent(incoming.getMorningIncludePresent());
+        s.setMorningIncludeLate(incoming.getMorningIncludeLate());
+        s.setMorningIncludeAbsent(incoming.getMorningIncludeAbsent());
+        s.setEveningIncludePresent(incoming.getEveningIncludePresent());
+        s.setEveningIncludeLate(incoming.getEveningIncludeLate());
+        s.setEveningIncludeAbsent(incoming.getEveningIncludeAbsent());
         s.setEnabled(incoming.isEnabled());
         s.setRecipientEmails(incoming.getRecipientEmails());
         s.setSendOnlyExceptions(incoming.isSendOnlyExceptions());

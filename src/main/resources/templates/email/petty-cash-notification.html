@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title th:text="${title}">Petty Cash Notification</title></head>
+<body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#1e293b">
+<div style="padding:28px 12px">
+  <div style="max-width:640px;margin:auto;background:#fff;border:1px solid #dbe5e1;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,.08)">
+    <div style="padding:26px 30px;background:linear-gradient(135deg,#047857,#0f766e);color:#fff">
+      <div style="font-size:12px;font-weight:700;letter-spacing:2px;opacity:.85">EAC FINANCE</div>
+      <h1 style="margin:8px 0 0;font-size:24px" th:text="${title}">Petty Cash Notification</h1>
+    </div>
+    <div style="padding:30px">
+      <p style="margin:0 0 20px;line-height:1.6" th:text="${message}">A petty cash request has been updated.</p>
+      <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:10px;overflow:hidden">
+        <tr><td style="padding:12px 15px;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0">Reference</td><td style="padding:12px 15px;font-weight:700;text-align:right;border-bottom:1px solid #e2e8f0" th:text="${reference}">PCR-0000</td></tr>
+        <tr th:if="${voucherNumber != null}"><td style="padding:12px 15px;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0">Voucher</td><td style="padding:12px 15px;font-weight:700;text-align:right;border-bottom:1px solid #e2e8f0" th:text="${voucherNumber}">PCV-0000</td></tr>
+        <tr><td style="padding:12px 15px;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0">Amount</td><td style="padding:12px 15px;font-weight:700;text-align:right;border-bottom:1px solid #e2e8f0" th:text="${'GHS ' + #numbers.formatDecimal(amount,1,'COMMA',2,'POINT')}">GHS 0.00</td></tr>
+        <tr><td style="padding:12px 15px;color:#64748b;font-size:13px">Status</td><td style="padding:12px 15px;font-weight:700;text-align:right" th:text="${status}">PENDING ACCOUNTS</td></tr>
+      </table>
+      <div th:if="${notes != null}" style="margin-top:18px;padding:14px 16px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:6px"><strong>Notes</strong><div style="margin-top:5px;white-space:pre-line" th:text="${notes}"></div></div>
+      <div style="text-align:center;margin-top:26px"><a th:href="${actionUrl}" href="#" style="display:inline-block;padding:13px 22px;background:#059669;color:#fff;text-decoration:none;border-radius:9px;font-weight:700">Open Petty Cash</a></div>
+      <p style="margin:22px 0 0;color:#64748b;font-size:12px;text-align:center">If the button does not work, copy this address:<br><a th:href="${actionUrl}" th:text="${actionUrl}" style="color:#047857;word-break:break-all"></a></p>
+    </div>
+    <div style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px"><strong th:text="${companyName}">EAC System</strong><br><span th:text="${companyEmail}"></span><span th:if="${companyPhone != null}"> · <span th:text="${companyPhone}"></span></span><div style="margin-top:7px">This is an automated notification. Never send your password by email.</div></div>
+  </div>
+</div>
+</body></html>

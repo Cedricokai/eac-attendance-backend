@@ -27,7 +27,7 @@ public interface PayrollPeriodRepository extends JpaRepository<PayrollPeriod, Lo
 
     // Check for overlapping periods for the SAME category only
     @Query("SELECT p FROM PayrollPeriod p WHERE " +
-            "p.category = :category AND " +  // Only check same category
+            "p.category = :category AND COALESCE(p.periodType, 'CATEGORY') = 'CATEGORY' AND " +  // Only check same category
             "((p.startDate BETWEEN :startDate AND :endDate) OR " +
             "(p.endDate BETWEEN :startDate AND :endDate) OR " +
             "(p.startDate <= :startDate AND p.endDate >= :endDate))")
@@ -48,6 +48,12 @@ public interface PayrollPeriodRepository extends JpaRepository<PayrollPeriod, Lo
     List<PayrollPeriod> findOpenPeriods();
 
     Optional<PayrollPeriod> findByName(String name);
+    @Query("SELECT p FROM PayrollPeriod p WHERE p.periodType = 'PROJECT' AND p.projectId = :projectId AND p.startDate <= :end AND p.endDate >= :start")
+    List<PayrollPeriod> findOverlappingProjectPeriods(@Param("start") LocalDate start, @Param("end") LocalDate end, @Param("projectId") Long projectId);
+    // All payroll writers take these locks in the same order, across period types.
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PayrollPeriod p ORDER BY p.id")
+    List<PayrollPeriod> lockForPayrollGeneration();
 
     // ==================== PAYROLL RECORD REPOSITORY METHODS ====================
 

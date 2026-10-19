@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><title>Leave decision notification</title></head>
+<body style="font-family:Arial,sans-serif;color:#172033;background:#f3f6fa;padding:24px">
+<main style="max-width:640px;margin:auto;background:white;padding:28px;border-radius:12px">
+  <h1 style="font-size:24px">Leave request update</h1>
+  <p th:if="${employeeNotice}">Hello <span th:text="${employeeName}"></span>, your leave request has an update.</p>
+  <p th:unless="${employeeNotice}">This is a notification about <strong th:text="${employeeName}"></strong>'s leave request.</p>
+  <p><strong>Decision:</strong> <span th:text="${decision}"></span></p>
+  <p><strong>Decision made by:</strong> <span th:text="${decisionActor}"></span></p>
+  <p th:if="${finalApproval}">The leave request is fully approved.</p>
+  <p th:if="${rejected}">The leave request has been rejected.</p>
+  <p th:if="${!finalApproval and !rejected}">This approval step is complete. The request is still awaiting further approval.</p>
+  <p><strong>Employee:</strong> <span th:text="${employeeName}"></span></p>
+  <p><strong>Leave type:</strong> <span th:text="${leaveType}"></span></p>
+  <p><strong>Dates:</strong> <span th:text="${startDate}"></span> to <span th:text="${endDate}"></span></p>
+  <p th:if="${feedback != null and !#strings.isEmpty(feedback)}"><strong>Feedback:</strong> <span th:text="${feedback}"></span></p>
+  <p th:unless="${employeeNotice}">You received this email because you are listed for leave decision notifications. No action is required from this email.</p>
+  <p th:text="${companyName}"></p>
+</main>
+</body>
+</html>

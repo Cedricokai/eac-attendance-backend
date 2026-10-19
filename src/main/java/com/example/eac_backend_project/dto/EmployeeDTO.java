@@ -11,6 +11,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class EmployeeDTO {
 
+    private String weeklyOffDays;
     private Long id;
 
     private String employeeId;

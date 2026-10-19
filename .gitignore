@@ -44,3 +44,11 @@ bin/
 application-*.properties
 application-*.yml
 *.local.properties
+# Local secrets and runtime data
+.env
+.env.*
+!.env.example
+backups/
+backup-settings/
+uploads/
+.codex-tmp/

@@ -78,6 +78,57 @@ public class Timesheet {
     @Column(name = "verified_by")
     private String verifiedBy;
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private String payrollApprovalStatus = "DRAFT";
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private String payrollApprovedBy;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private LocalDateTime payrollApprovedAt;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private String payrollSubmittedBy;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private LocalDateTime payrollSubmittedAt;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private String payrollDecisionReason;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String payrollReviewFingerprint;
+    @Version
+    @Column(columnDefinition = "bigint default 0")
+    private Long approvalVersion;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String payrollFingerprint() {
+        String work = String.join("|", String.valueOf(employee == null ? null : employee.getId()),
+                String.valueOf(job == null ? null : job.getId()), String.valueOf(date),
+                String.valueOf(attendanceCode), String.valueOf(regularHours), String.valueOf(overtimeHours),
+                String.valueOf(breakHours));
+        if (job != null && Boolean.TRUE.equals(job.getDailyHoursTopUpEnabled())) {
+            work += "|daily-top-up|" + job.getDailyHoursTopUpThreshold() + "|" + job.getDailyHoursTopUpTarget() + "|" + job.getStandardWorkHours();
+        }
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(work.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isPayrollApproved() {
+        return "APPROVED".equals(payrollApprovalStatus) && payrollFingerprint().equals(payrollReviewFingerprint)
+                && payrollApprovedBy != null && payrollApprovedAt != null;
+    }
+    @PrePersist
+    public void initializePayrollApproval() { resetPayrollApproval(); }
+    @PreUpdate
+    public void invalidateChangedPayrollApproval() {
+        if (payrollApprovalStatus == null || (!"DRAFT".equals(payrollApprovalStatus)
+                && !payrollFingerprint().equals(payrollReviewFingerprint))) resetPayrollApproval();
+    }
+    public void resetPayrollApproval() {
+        payrollApprovalStatus = "DRAFT";
+        payrollReviewFingerprint = null;
+        payrollApprovedBy = null; payrollApprovedAt = null;
+        payrollSubmittedBy = null; payrollSubmittedAt = null; payrollDecisionReason = null;
+    }
+
     // Constructors
     public Timesheet() {}
 

@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 @Service
 public class InventoryRequestService {
 
+    @org.springframework.beans.factory.annotation.Autowired private UserService inventoryUserService;
+    @org.springframework.beans.factory.annotation.Autowired private com.example.eac_backend_project.repository.InventoryPurchaseLineRepository purchaseLines;
     private final InventoryRequestRepository requestRepository;
     private final ProductRepository productRepository;
     private final ProductService productService;
@@ -64,12 +66,12 @@ public class InventoryRequestService {
     ) {
         InventoryRequest request = new InventoryRequest();
 
-        request.setRequestedBy(
-                dto.getRequestedBy() != null &&
-                        !dto.getRequestedBy().trim().isEmpty()
-                        ? dto.getRequestedBy().trim()
-                        : userEmail
-        );
+        User origin = inventoryUserService.getCurrentUser();
+        request.setRequestedBy(origin.getUserName());
+        request.setFinanceFulfilment(true);
+        request.setRequesterUserId(origin.getId());
+        request.setRequesterName(origin.getName());
+        request.setRequesterEmail(origin.getEmail());
 
         request.setDepartment(dto.getDepartment());
         request.setProjectName(dto.getProjectName());
@@ -214,7 +216,7 @@ public class InventoryRequestService {
                             : 0;
 
             item.setRequestedQuantity(requestedQuantity);
-            item.setApprovedQuantity(0);
+            item.setApprovedQuantity(null);
             item.setIssuedQuantity(0);
             item.setNotes(itemDTO.getNotes());
             item.setEstimatedUsage(
@@ -303,37 +305,8 @@ public class InventoryRequestService {
     private void determineInitialStatus(
             InventoryRequest request
     ) {
-        WorkflowDefinition workflow =
-                workflowService.findMatchingWorkflow(
-                        "INVENTORY",
-                        request
-                );
-
-        if (workflow != null &&
-                workflow.getSteps() != null &&
-                !workflow.getSteps().isEmpty()) {
-
-            WorkflowStep firstStep =
-                    workflow.getSteps().get(0);
-
-            request.setStatus(
-                    parseRequestStatus(
-                            firstStep.getTargetStatus()
-                    )
-            );
-
-            return;
-        }
-
-        if (requiresProcurement(request)) {
-            request.setStatus(
-                    RequestStatus.PROCUREMENT_PENDING
-            );
-        } else {
-            request.setStatus(
-                    RequestStatus.PENDING_PLANNER
-            );
-        }
+        // New employee requests enter an unapproved queue; workflow target statuses are approval outcomes.
+        request.setStatus(requiresProcurement(request) ? RequestStatus.PROCUREMENT_PENDING : RequestStatus.PENDING_STORE);
     }
 
     private String generateRequestNumber() {
@@ -369,17 +342,28 @@ public class InventoryRequestService {
         InventoryRequest request =
                 getRequiredRequest(requestId);
 
+        if(request.isFinanceFulfilment()) {
+            requireFulfilmentApprovalRole(role);
+            if("PROCUREMENT".equals(role) && request.getStatus()==RequestStatus.PROCUREMENT_PENDING) request.setStatus(RequestStatus.APPROVED_BY_PROCUREMENT);
+            else if("STORE".equals(role) && Set.of(RequestStatus.PENDING_STORE,RequestStatus.STORE_REVIEW).contains(request.getStatus())) request.setStatus(RequestStatus.APPROVED_BY_STORE);
+            else if("PLANNER".equals(role) && Set.of(RequestStatus.PENDING,RequestStatus.PENDING_PLANNER).contains(request.getStatus())) request.setStatus(requiresProcurement(request)?RequestStatus.PROCUREMENT_PENDING:RequestStatus.PENDING_STORE);
+            else throw new IllegalArgumentException("Request is not awaiting this approval");
+            for(RequestItem i:request.getItems())if(i.getApprovedQuantity()==null||i.getApprovedQuantity()==0)i.setApprovedQuantity(i.getRequestedQuantity());
+            recordApproval(request,role,approvedBy,notes,estimatedCost,deliveryDate);
+            InventoryRequest saved=requestRepository.save(request);sendStatusNotificationSafely(saved,role+"_APPROVED",approvedBy,notes);return saved;
+        }
+
         WorkflowDefinition workflow =
                 workflowService.findMatchingWorkflow(
                         "INVENTORY",
                         request
                 );
 
-        WorkflowStep currentStep =
-                workflowService.getStepByStatus(
-                        workflow,
-                        request.getStatus().name()
-                );
+        WorkflowStep currentStep = resolveActionStep(
+                workflow,
+                request.getStatus().name(),
+                role
+        );
 
         validateRoleForStep(
                 currentStep,
@@ -492,6 +476,11 @@ public class InventoryRequestService {
             InventoryRequest request,
             String approvedBy
     ) {
+        // Approval authorizes fulfilment; an incomplete stock request must remain issuable in parts.
+        if(request.isFinanceFulfilment() || request.getItems().stream().anyMatch(i -> i.getProductId()==null || productRepository.findById(i.getProductId()).map(p -> p.getStock() - (purchaseLines == null ? 0 : purchaseLines.reservedStock(p.getId())) < getApprovedOrRequestedQuantity(i)).orElse(true))) {
+            request.setStatus(RequestStatus.APPROVED_BY_STORE);
+            return;
+        }
         issueItemsLogic(request, approvedBy);
 
         request.setStatus(RequestStatus.ISSUED);
@@ -523,13 +512,22 @@ public class InventoryRequestService {
             Double estimatedCost,
             LocalDateTime deliveryDate
     ) {
-        return approveStep(
+        InventoryRequest approvedRequest = approveStep(
                 requestId,
                 "PROCUREMENT",
                 approvedBy,
                 notes,
                 estimatedCost,
                 deliveryDate
+        );
+
+        // Procurement approval completes the procurement stage. Move the
+        // request immediately into the configured Store queue so it appears
+        // under Received > Manage Requests without a second manual action.
+        if(approvedRequest.isFinanceFulfilment()) return approvedRequest;
+        return sendToStore(
+                approvedRequest.getId(),
+                approvedBy
         );
     }
 
@@ -604,17 +602,30 @@ public class InventoryRequestService {
         InventoryRequest request =
                 getRequiredRequest(requestId);
 
+        if(request.isFinanceFulfilment()) {
+            requireFulfilmentApprovalRole(role);
+            boolean pending = switch(role) {
+                case "STORE" -> Set.of(RequestStatus.PENDING_STORE,RequestStatus.STORE_REVIEW).contains(request.getStatus());
+                case "PROCUREMENT" -> request.getStatus()==RequestStatus.PROCUREMENT_PENDING;
+                case "PLANNER" -> Set.of(RequestStatus.PENDING,RequestStatus.PENDING_PLANNER).contains(request.getStatus());
+                default -> false;
+            };
+            if(!pending) throw new IllegalArgumentException("Only a request awaiting this review can be rejected; return priced proposals through Accounts");
+            RequestStatus rejected = switch(role) {case "STORE" -> RequestStatus.REJECTED_BY_STORE;case "PROCUREMENT" -> RequestStatus.REJECTED_BY_PROCUREMENT;default -> RequestStatus.REJECTED_BY_PLANNER;};
+            request.setStatus(rejected);recordRejection(request,role,rejectedBy,notes);InventoryRequest saved=requestRepository.save(request);sendStatusNotificationSafely(saved,role+"_REJECTED",rejectedBy,notes);return saved;
+        }
+
         WorkflowDefinition workflow =
                 workflowService.findMatchingWorkflow(
                         "INVENTORY",
                         request
                 );
 
-        WorkflowStep currentStep =
-                workflowService.getStepByStatus(
-                        workflow,
-                        request.getStatus().name()
-                );
+        WorkflowStep currentStep = resolveActionStep(
+                workflow,
+                request.getStatus().name(),
+                role
+        );
 
         validateRoleForStep(
                 currentStep,
@@ -821,14 +832,6 @@ public class InventoryRequestService {
                 )
         );
 
-        request.setStoreApprovedBy(
-                sentBy + " (sent to store)"
-        );
-
-        request.setStoreApprovalDate(
-                LocalDateTime.now()
-        );
-
         updateAllItemStatuses(
                 request,
                 request.getStatus().name()
@@ -860,6 +863,7 @@ public class InventoryRequestService {
         InventoryRequest request =
                 getRequiredRequest(requestId);
 
+        if(request.isFinanceFulfilment()) throw new IllegalArgumentException("Use linked purchase receipt to record quantities and evidence");
         Set<RequestStatus> receiptAllowedStatuses =
                 EnumSet.of(
                         RequestStatus.PROCURED,
@@ -925,7 +929,7 @@ public class InventoryRequestService {
 
         Product product =
                 productRepository
-                        .findById(item.getProductId())
+                        .findForUpdate(item.getProductId())
                         .orElseThrow(() ->
                                 new RuntimeException(
                                         "Product not found: " +
@@ -1049,6 +1053,7 @@ public class InventoryRequestService {
             InventoryRequest request,
             String issuedBy
     ) {
+        if(request.isFinanceFulfilment()) throw new IllegalArgumentException("Use per-item fulfilment to issue this request");
         List<Outgoing> outgoingsToSave =
                 new ArrayList<>();
 
@@ -1060,7 +1065,7 @@ public class InventoryRequestService {
 
             Product product =
                     productRepository
-                            .findById(item.getProductId())
+                            .findForUpdate(item.getProductId())
                             .orElseThrow(() ->
                                     new RuntimeException(
                                             "Product not found: " +
@@ -1081,7 +1086,7 @@ public class InventoryRequestService {
                 );
             }
 
-            int currentStock = product.getStock();
+            int currentStock = product.getStock() - (purchaseLines == null ? 0 : purchaseLines.reservedStock(product.getId()));
 
             if (currentStock < quantityToIssue) {
                 throw new RuntimeException(
@@ -1095,7 +1100,7 @@ public class InventoryRequestService {
             }
 
             product.setStock(
-                    currentStock - quantityToIssue
+                    product.getStock() - quantityToIssue
             );
 
             productRepository.save(product);
@@ -1122,7 +1127,7 @@ public class InventoryRequestService {
         }
     }
 
-    private Outgoing createOutgoingRecord(
+    public Outgoing createOutgoingRecord(
             InventoryRequest request,
             RequestItem item,
             Product product,
@@ -1357,12 +1362,51 @@ public class InventoryRequestService {
                 .anyMatch(normalizedRequestedRole::equals);
     }
 
+    private void requireFulfilmentApprovalRole(String role) {
+        String authority = switch(role) {case "PROCUREMENT" -> "PROCUREMENT_OFFICER";case "STORE" -> "INVENTORY";default -> role;};
+        var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if(auth==null || auth.getAuthorities().stream().noneMatch(a -> Arrays.asList("ROLE_ADMIN","ROLE_"+authority,"ROLE_"+role).contains(a.getAuthority()) || ("STORE".equals(role) && Arrays.asList("ROLE_STORE_OFFICER","ROLE_STOREKEEPER").contains(a.getAuthority())))) throw new org.springframework.security.access.AccessDeniedException("Approval permission is required");
+    }
+
     private String normalizeRole(String role) {
         return role == null
                 ? ""
                 : role.trim()
                 .toUpperCase(Locale.ROOT)
                 .replace("ROLE_", "");
+    }
+
+    /**
+     * Target statuses identify the step that produced them. If that step has
+     * completed, the role assigned to the following step must be able to act
+     * on the request. Role validation remains restricted to configured steps.
+     */
+    private WorkflowStep resolveActionStep(
+            WorkflowDefinition workflow,
+            String currentStatus,
+            String requestedRole
+    ) {
+        WorkflowStep statusStep = workflowService.getStepByStatus(
+                workflow,
+                currentStatus
+        );
+
+        if (statusStep != null &&
+                roleContains(statusStep.getRequiredRole(), requestedRole)) {
+            return statusStep;
+        }
+
+        WorkflowStep nextStep = workflowService.getNextStep(
+                workflow,
+                currentStatus
+        );
+
+        if (nextStep != null &&
+                roleContains(nextStep.getRequiredRole(), requestedRole)) {
+            return nextStep;
+        }
+
+        return statusStep;
     }
 
     private RequestStatus parseRequestStatus(
@@ -1377,7 +1421,7 @@ public class InventoryRequestService {
 
         try {
             return RequestStatus.valueOf(
-                    value.trim().toUpperCase(
+                    value.trim().replaceAll("[\\s-]+", "_").toUpperCase(
                             Locale.ROOT
                     )
             );
@@ -1457,6 +1501,14 @@ public class InventoryRequestService {
             return false;
         }
 
+        if(request.isFinanceFulfilment() && requiresProcurement(request) && Set.of(RequestStatus.APPROVED_BY_PROCUREMENT,RequestStatus.APPROVED_BY_STORE,RequestStatus.PARTIALLY_ISSUED,RequestStatus.ISSUED,RequestStatus.RECEIVED_IN_STORE).contains(status)) return true;
+
+        // Keep successfully handed-off requests visible in Procurement's
+        // Approved tab after they move into the Store review queue.
+        if (status == RequestStatus.STORE_REVIEW) {
+            return true;
+        }
+
         boolean procurementRequest =
                 requiresProcurement(request);
 
@@ -1493,6 +1545,7 @@ public class InventoryRequestService {
     public List<InventoryRequest> getRequestsForStore() {
         Set<RequestStatus> storeStatuses =
                 EnumSet.of(
+                        RequestStatus.PARTIALLY_ISSUED,
                         RequestStatus.PENDING_STORE,
                         RequestStatus.STORE_REVIEW,
                         RequestStatus.APPROVED_BY_STORE,

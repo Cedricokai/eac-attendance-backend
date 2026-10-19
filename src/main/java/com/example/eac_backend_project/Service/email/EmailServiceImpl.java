@@ -10,6 +10,8 @@ import com.example.eac_backend_project.entity.attendance.Leave;
 import com.example.eac_backend_project.entity.attendance.LoanRequest;
 import com.example.eac_backend_project.entity.attendance.Overtime;
 import com.example.eac_backend_project.entity.inventory.InventoryRequest;
+import com.example.eac_backend_project.entity.inventory.PurchaseOrder;
+import com.example.eac_backend_project.entity.inventory.PurchaseOrderItem;
 import com.example.eac_backend_project.entity.inventory.User;
 import com.example.eac_backend_project.entity.inventory.RequestItem;
 import com.example.eac_backend_project.entity.inventory.RequestStatus;
@@ -45,6 +47,9 @@ public class EmailServiceImpl implements EmailService {
     private final SettingsService settingsService;
     private final EmailRecipientHelper emailRecipientHelper;
     private final FrontendUrlService frontendUrlService;
+
+    @Autowired
+    private com.example.eac_backend_project.repository.UserRepository userRepository;
 
     @Value("${spring.mail.username}")
     private String smtpUsername;
@@ -186,166 +191,84 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendSupervisorApprovalNotification(Leave leave, String feedback) {
-        try {
-            sendHtmlEmailWithTemplate(
-                    leave.getEmployee().getEmail(),
-                    "✅ Leave Approved by Supervisor - " + leave.getLeaveType(),
-                    "supervisor-approval-request",
-                    leave,
-                    leave.getEmployee()
-            );
-
-            SystemSettings settings = settingsService.getSystemSettings();
-            List<String> recipients = emailRecipientHelper.parseEmailRecipients(settings.getLeaveApprovalRecipients());
-            if (!recipients.isEmpty()) {
-                for (String recipient : recipients) {
-                    try {
-                        sendHtmlEmailWithTemplate(recipient,
-                                "✅ Leave Approved by Supervisor - " + leave.getEmployee().getFirstName(),
-                                "supervisor-approval-request",
-                                leave,
-                                leave.getEmployee());
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email to " + recipient + ": " + e.getMessage());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("ERROR in sendSupervisorApprovalNotification: " + e.getMessage());
-            e.printStackTrace();
-        }
+        sendLeaveDecision(leave, "Approved by supervisor", feedback);
     }
 
     @Override
     public void sendPlannerApprovalNotification(Leave leave, String feedback) {
-        try {
-            sendHtmlEmailWithTemplate(
-                    leave.getEmployee().getEmail(),
-                    "✅ Leave Approved by Planner - " + leave.getLeaveType(),
-                    "planner-approval-request",
-                    leave,
-                    leave.getEmployee()
-            );
-
-            SystemSettings settings = settingsService.getSystemSettings();
-            List<String> recipients = emailRecipientHelper.parseEmailRecipients(settings.getLeaveApprovalRecipients());
-            if (!recipients.isEmpty()) {
-                for (String recipient : recipients) {
-                    try {
-                        sendHtmlEmailWithTemplate(recipient,
-                                "✅ Leave Approved by Planner - " + leave.getEmployee().getFirstName(),
-                                "planner-approval-request",
-                                leave,
-                                leave.getEmployee());
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email to " + recipient + ": " + e.getMessage());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("ERROR in sendPlannerApprovalNotification: " + e.getMessage());
-            e.printStackTrace();
-        }
+        sendLeaveDecision(leave, "Approved by planner", feedback);
     }
 
     @Override
     public void sendHrApprovalNotification(Leave leave, String feedback) {
-        try {
-            sendHtmlEmailWithTemplate(
-                    leave.getEmployee().getEmail(),
-                    "✅ Leave Approved by HR - " + leave.getLeaveType(),
-                    "hr-approval-request",
-                    leave,
-                    leave.getEmployee()
-            );
-
-            SystemSettings settings = settingsService.getSystemSettings();
-            List<String> recipients = emailRecipientHelper.parseEmailRecipients(settings.getLeaveApprovalRecipients());
-            if (!recipients.isEmpty()) {
-                for (String recipient : recipients) {
-                    try {
-                        sendHtmlEmailWithTemplate(recipient,
-                                "✅ Leave Approved by HR - " + leave.getEmployee().getFirstName(),
-                                "hr-approval-request",
-                                leave,
-                                leave.getEmployee());
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email to " + recipient + ": " + e.getMessage());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("ERROR in sendHrApprovalNotification: " + e.getMessage());
-            e.printStackTrace();
-        }
+        sendLeaveDecision(leave, "Approved by HR", feedback);
     }
-
-    // ==================== BULK APPROVAL NOTIFICATION ====================
 
     @Override
     public void sendBulkApprovalNotification(Leave leave, String feedback) {
-        try {
-            sendHtmlEmailWithTemplate(
-                    leave.getEmployee().getEmail(),
-                    "✅ Leave Request Approved - " + leave.getLeaveType(),
-                    "leave-approval-notification",
-                    leave,
-                    leave.getEmployee()
-            );
-            System.out.println("✅ Bulk approval email sent to: " + leave.getEmployee().getEmail());
-
-            SystemSettings settings = settingsService.getSystemSettings();
-            List<String> recipients = emailRecipientHelper.parseEmailRecipients(settings.getLeaveApprovalRecipients());
-            if (!recipients.isEmpty()) {
-                for (String recipient : recipients) {
-                    try {
-                        sendHtmlEmailWithTemplate(recipient,
-                                "✅ Leave Approved - " + leave.getEmployee().getFirstName() + " " + leave.getEmployee().getLastName(),
-                                "leave-approval-notification",
-                                leave,
-                                leave.getEmployee());
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email to " + recipient + ": " + e.getMessage());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("ERROR in sendBulkApprovalNotification: " + e.getMessage());
-            e.printStackTrace();
-        }
+        sendLeaveDecision(leave, "Approved", feedback);
     }
-
-    // ==================== LEAVE REJECTION NOTIFICATION ====================
 
     @Override
     public void sendLeaveRejectionNotification(Leave leave, String role, String feedback) {
-        try {
-            sendHtmlEmailWithTemplate(
-                    leave.getEmployee().getEmail(),
-                    "❌ Leave Request Rejected - " + leave.getLeaveType(),
-                    "leave-rejection-notification",
-                    leave,
-                    leave.getEmployee()
-            );
+        sendLeaveDecision(leave, "Rejected" + (role == null || role.isBlank() ? "" : " by " + role), feedback);
+    }
 
-            SystemSettings settings = settingsService.getSystemSettings();
-            List<String> recipients = emailRecipientHelper.parseEmailRecipients(settings.getLeaveApprovalRecipients());
-            if (!recipients.isEmpty()) {
-                for (String recipient : recipients) {
-                    try {
-                        sendHtmlEmailWithTemplate(recipient,
-                                "❌ Leave Rejected - " + leave.getEmployee().getFirstName(),
-                                "leave-rejection-notification",
-                                leave,
-                                leave.getEmployee());
-                    } catch (Exception e) {
-                        System.err.println("Failed to send email to " + recipient + ": " + e.getMessage());
-                    }
+    private String leaveDecisionActor() {
+        var authentication = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+            return "Not recorded";
+        }
+        String username = authentication.getName();
+        try {
+            if (userRepository != null) {
+                return userRepository.findByUserName(username)
+                        .map(User::getName)
+                        .filter(name -> !name.isBlank())
+                        .orElse(username);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to resolve leave decision actor: " + e.getMessage());
+        }
+        return username;
+    }
+
+    private void sendLeaveDecision(Leave leave, String decision, String feedback) {
+        String decisionActor = leaveDecisionActor();
+        Employee employee = leave.getEmployee();
+        if (employee == null) return;
+        Set<String> recipients = new LinkedHashSet<>();
+        String employeeEmail = employee.getEmail() == null ? "" : employee.getEmail().trim();
+        if (!employeeEmail.isEmpty()) recipients.add(employeeEmail.toLowerCase(java.util.Locale.ROOT));
+        try {
+            for (String recipient : emailRecipientHelper.parseEmailRecipients(
+                    settingsService.getSystemSettings().getLeaveApprovalRecipients())) {
+                if (recipient != null && !recipient.isBlank()) {
+                    recipients.add(recipient.trim().toLowerCase(java.util.Locale.ROOT));
                 }
             }
         } catch (Exception e) {
-            System.err.println("ERROR in sendLeaveRejectionNotification: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Failed to load leave decision recipients: " + e.getMessage());
+        }
+        for (String recipient : recipients) {
+            try {
+                Map<String, Object> data = new HashMap<>();
+                data.put("employeeNotice", recipient.equalsIgnoreCase(employeeEmail));
+                data.put("decision", decision);
+                data.put("decisionActor", decisionActor);
+                data.put("feedback", feedback);
+                data.put("finalApproval", "Approved".equalsIgnoreCase(leave.getStatus()));
+                data.put("rejected", "Rejected".equalsIgnoreCase(leave.getStatus()));
+                data.put("status", leave.getStatus());
+                sendHtmlEmailWithTemplateForApprover(recipient,
+                        "Leave Request - " + decision + " - " + employee.getFirstName() + " " + employee.getLastName(),
+                        "leave-decision-notification", leave, employee, data);
+            } catch (Exception e) {
+                // A delivery failure must not prevent other recipients from being notified.
+                System.err.println("Failed to send leave decision email to " + recipient + ": " + e.getMessage());
+            }
         }
     }
 
@@ -1378,6 +1301,186 @@ public class EmailServiceImpl implements EmailService {
                 (employee.getLastName() != null ? employee.getLastName() : "");
     }
 
+
+    // ==================== PROCUREMENT PURCHASE NOTIFICATIONS ====================
+
+    @Override
+    public void sendProcurementPurchaseCreated(PurchaseOrder purchaseOrder) {
+        if (purchaseOrder == null) return;
+
+        SystemSettings settings = settingsService.getSystemSettings();
+        if (Boolean.FALSE.equals(settings.getReviewerNotificationEnabled())) {
+            return;
+        }
+
+        List<String> recipients =
+                emailRecipientHelper.parseEmailRecipients(settings.getReviewerRecipients());
+
+        if (recipients == null || recipients.isEmpty()) {
+            System.out.println("No Procurement Purchase reviewer recipients configured.");
+            return;
+        }
+
+        String subject = "New Procurement Purchase for Review - "
+                + safe(purchaseOrder.getPurchaseOrderNumber());
+
+        String html = buildProcurementPurchaseEmail(
+                purchaseOrder,
+                "A new Procurement Purchase has been created and is ready for review.",
+                null,
+                "REVIEW"
+        );
+
+        for (String recipient : recipients) {
+            try {
+                sendCustomEmail(recipient, subject, html);
+                System.out.println("Procurement Purchase reviewer email sent to: " + recipient);
+            } catch (Exception exception) {
+                System.err.println(
+                        "Failed to send Procurement Purchase reviewer email to "
+                                + recipient + ": " + exception.getMessage()
+                );
+            }
+        }
+    }
+
+    @Override
+    public void sendProcurementPurchaseStoreNotification(
+            PurchaseOrder purchaseOrder,
+            String notificationNotes
+    ) {
+        if (purchaseOrder == null) return;
+
+        SystemSettings settings = settingsService.getSystemSettings();
+        if (Boolean.FALSE.equals(settings.getInventoryStoreNotificationEnabled())) {
+            return;
+        }
+
+        List<String> recipients =
+                emailRecipientHelper.parseEmailRecipients(settings.getInventoryStoreRecipients());
+
+        if (recipients == null || recipients.isEmpty()) {
+            System.out.println("No Procurement Purchase Store recipients configured.");
+            return;
+        }
+
+        String subject = "Store Action Required - Procurement Purchase "
+                + safe(purchaseOrder.getPurchaseOrderNumber());
+
+        String html = buildProcurementPurchaseEmail(
+                purchaseOrder,
+                "Procurement has notified Store that this purchase is ready for Store action.",
+                notificationNotes,
+                "STORE"
+        );
+
+        for (String recipient : recipients) {
+            try {
+                sendCustomEmail(recipient, subject, html);
+                System.out.println("Procurement Purchase Store email sent to: " + recipient);
+            } catch (Exception exception) {
+                System.err.println(
+                        "Failed to send Procurement Purchase Store email to "
+                                + recipient + ": " + exception.getMessage()
+                );
+            }
+        }
+    }
+
+    private String buildProcurementPurchaseEmail(
+            PurchaseOrder purchaseOrder,
+            String headline,
+            String notificationNotes,
+            String audience
+    ) {
+        SystemSettings settings = settingsService.getSystemSettings();
+        String companyName = safe(settings.getCompanyName());
+        String purchaseNumber = safe(purchaseOrder.getPurchaseOrderNumber());
+        String supplier = safe(purchaseOrder.getSupplierName());
+        String orderedBy = safe(purchaseOrder.getOrderedBy());
+        String status = safe(purchaseOrder.getStatus());
+
+        StringBuilder itemsHtml = new StringBuilder();
+        if (purchaseOrder.getItems() != null && !purchaseOrder.getItems().isEmpty()) {
+            for (PurchaseOrderItem item : purchaseOrder.getItems()) {
+                itemsHtml.append("<tr>")
+                        .append("<td style=\"padding:9px;border-bottom:1px solid #e5e7eb;\">")
+                        .append(escapeHtml(item.getProductName()))
+                        .append("</td>")
+                        .append("<td style=\"padding:9px;border-bottom:1px solid #e5e7eb;text-align:center;\">")
+                        .append(item.getQuantity())
+                        .append("</td>")
+                        .append("<td style=\"padding:9px;border-bottom:1px solid #e5e7eb;text-align:right;\">GH₵ ")
+                        .append(String.format("%,.2f", item.getUnitPrice()))
+                        .append("</td>")
+                        .append("<td style=\"padding:9px;border-bottom:1px solid #e5e7eb;text-align:right;\">GH₵ ")
+                        .append(String.format("%,.2f", item.getTotalPrice()))
+                        .append("</td>")
+                        .append("</tr>");
+            }
+        } else {
+            itemsHtml.append(
+                    "<tr><td colspan=\"4\" style=\"padding:12px;text-align:center;color:#6b7280;\">No items</td></tr>"
+            );
+        }
+
+        String actionText = "STORE".equals(audience)
+                ? "Open the Store / Products page to review and receive the items."
+                : "Open Procurement Purchases to review the purchase details.";
+
+        String actionUrl = "STORE".equals(audience)
+                ? frontendUrlService.route("/products")
+                : frontendUrlService.route("/procurement-purchases");
+
+        return "<!DOCTYPE html><html><body style=\"margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#1f2937;\">"
+                + "<div style=\"max-width:760px;margin:24px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;\">"
+                + "<div style=\"padding:24px 28px;background:#1d4ed8;color:#fff;\">"
+                + "<h2 style=\"margin:0;font-size:22px;\">"
+                + escapeHtml(companyName.isBlank() ? "Procurement Purchase" : companyName)
+                + "</h2>"
+                + "<p style=\"margin:8px 0 0;opacity:.9;\">Procurement Purchase Notification</p>"
+                + "</div>"
+                + "<div style=\"padding:26px 28px;\">"
+                + "<p style=\"font-size:16px;margin-top:0;\">" + escapeHtml(headline) + "</p>"
+                + "<table style=\"width:100%;border-collapse:collapse;margin:18px 0;background:#f9fafb;border-radius:8px;\">"
+                + "<tr><td style=\"padding:9px;font-weight:600;\">Purchase No.</td><td style=\"padding:9px;\">"
+                + escapeHtml(purchaseNumber) + "</td></tr>"
+                + "<tr><td style=\"padding:9px;font-weight:600;\">Supplier</td><td style=\"padding:9px;\">"
+                + escapeHtml(supplier) + "</td></tr>"
+                + "<tr><td style=\"padding:9px;font-weight:600;\">Created By</td><td style=\"padding:9px;\">"
+                + escapeHtml(orderedBy) + "</td></tr>"
+                + "<tr><td style=\"padding:9px;font-weight:600;\">Status</td><td style=\"padding:9px;\">"
+                + escapeHtml(status) + "</td></tr>"
+                + "<tr><td style=\"padding:9px;font-weight:600;\">Total</td><td style=\"padding:9px;font-weight:700;\">GH₵ "
+                + String.format("%,.2f", purchaseOrder.getTotalAmount())
+                + "</td></tr>"
+                + "</table>"
+                + "<h3 style=\"font-size:16px;margin:22px 0 8px;\">Items</h3>"
+                + "<table style=\"width:100%;border-collapse:collapse;border:1px solid #e5e7eb;\">"
+                + "<thead><tr style=\"background:#f3f4f6;\">"
+                + "<th style=\"padding:9px;text-align:left;\">Item</th>"
+                + "<th style=\"padding:9px;text-align:center;\">Qty</th>"
+                + "<th style=\"padding:9px;text-align:right;\">Unit Price</th>"
+                + "<th style=\"padding:9px;text-align:right;\">Total</th>"
+                + "</tr></thead><tbody>"
+                + itemsHtml
+                + "</tbody></table>"
+                + (notificationNotes == null || notificationNotes.isBlank()
+                ? ""
+                : "<div style=\"margin-top:18px;padding:12px;background:#fff7ed;border-left:4px solid #f97316;\">"
+                + "<strong>Procurement note:</strong><br/>"
+                + escapeHtml(notificationNotes)
+                + "</div>")
+                + "<p style=\"margin-top:22px;\">" + escapeHtml(actionText) + "</p>"
+                + "<p style=\"margin:20px 0 0;\">"
+                + "<a href=\"" + actionUrl + "\" style=\"display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:11px 18px;border-radius:7px;font-weight:600;\">Open System</a>"
+                + "</p>"
+                + "</div>"
+                + "<div style=\"padding:16px 28px;background:#f9fafb;color:#6b7280;font-size:12px;\">"
+                + "This is an automated Procurement Purchase notification."
+                + "</div></div></body></html>";
+    }
+
     // ==================== INVENTORY / PPE NOTIFICATIONS ====================
 
     @Async
@@ -1477,7 +1580,7 @@ public class EmailServiceImpl implements EmailService {
             case PROCUREMENT_PENDING, APPROVED_BY_PLANNER ->
                     addRecipients(recipients, settings.getPpeProcurementRecipients());
 
-            case PROCURED, STORE_REVIEW, PENDING_STORE,
+            case PARTIALLY_ISSUED, PROCURED, STORE_REVIEW, PENDING_STORE,
                  RECEIVED_IN_STORE, APPROVED_BY_STORE,
                  APPROVED_BY_PROCUREMENT ->
                     addRecipients(recipients, settings.getPpeStoreRecipients());
@@ -1591,7 +1694,7 @@ public class EmailServiceImpl implements EmailService {
         appendInventoryRow(html, "Requested by", request == null ? null : request.getRequestedBy());
         appendInventoryRow(html, "Department", request == null ? null : request.getDepartment());
         appendInventoryRow(html, "Project", request == null ? null : request.getProjectName());
-        appendInventoryRow(html, "Job", request == null ? null : request.getJobName());
+        appendInventoryRow(html, "Project", request == null ? null : request.getJobName());
         appendInventoryRow(html, "Location", request == null ? null : request.getLocation());
         appendInventoryRow(html, "Urgency", request == null ? null : request.getUrgency());
         appendInventoryRow(html, "Total quantity", request == null ? null : request.getQuantity());
@@ -1628,9 +1731,47 @@ public class EmailServiceImpl implements EmailService {
             html.append("</tbody></table>");
         }
 
+        if (request != null) {
+            String viewUrl = frontendUrlService.route(inventoryViewRoute(request));
+            html.append("<div style=\"margin-top:28px;text-align:center;\">")
+                    .append("<a href=\"")
+                    .append(escapeHtml(viewUrl))
+                    .append("\" style=\"display:inline-block;padding:12px 22px;background:")
+                    .append(ppe ? "#047857" : "#1d4ed8")
+                    .append(";color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;\">")
+                    .append("View Request</a></div>");
+        }
+
         html.append("<p style=\"margin-top:28px;color:#6b7280;font-size:13px;\">This is an automated notification.</p>");
         html.append("</div></div></body></html>");
         return html.toString();
+    }
+
+    private String inventoryViewRoute(InventoryRequest request) {
+        RequestStatus status = request.getStatus();
+        String requestId = request.getId() == null ? "" : "&requestId=" + request.getId();
+
+        if (status == null) return "/InventoryRequest";
+
+        return switch (status) {
+            case PENDING, PENDING_PLANNER ->
+                    "/plannerProductsReview";
+            case APPROVED_BY_PLANNER, PROCUREMENT_PENDING ->
+                    "/procurementManagerReview";
+            case PARTIALLY_ISSUED, PROCURED, STORE_REVIEW, PENDING_STORE,
+                 RECEIVED_IN_STORE, APPROVED_BY_STORE ->
+                    "/received?tab=requests" + requestId;
+            case ISSUED, RECEIVED ->
+                    "/outgoing";
+            case REJECTED_BY_PROCUREMENT ->
+                    "/procurementManagerReview";
+            case REJECTED_BY_STORE ->
+                    "/received?tab=requests" + requestId;
+            case REJECTED_BY_PLANNER, CANCELLED ->
+                    "/InventoryRequest";
+            case APPROVED_BY_PROCUREMENT ->
+                    "/received?tab=requests" + requestId;
+        };
     }
 
     private void appendInventoryRow(StringBuilder html, String label, Object value) {

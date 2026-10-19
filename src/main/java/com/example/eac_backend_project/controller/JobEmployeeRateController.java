@@ -28,6 +28,7 @@ public class JobEmployeeRateController {
         return ResponseEntity.ok(rates);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @PostMapping("/job/{jobId}")
     public ResponseEntity<?> saveRates(
             @PathVariable Long jobId,
@@ -40,7 +41,20 @@ public class JobEmployeeRateController {
                     .orElseThrow(() -> new RuntimeException("Employee not found: " + employeeId));
             Double normalRate = ((Number) data.get("normalHourRate")).doubleValue();
             Double overtimeRate = ((Number) data.get("overtimeRate")).doubleValue();
-            rateService.saveRate(job, employee, normalRate, overtimeRate);
+            if (!Double.isFinite(normalRate) || normalRate < 0 || !Double.isFinite(overtimeRate) || overtimeRate < 0)
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid timesheet billing rates");
+            if (data.containsKey("effectivePayrollRate")) {
+                try {
+                    rateService.saveRate(job, employee, normalRate, overtimeRate,
+                            data.get("effectivePayrollRate") == null ? null : ((Number) data.get("effectivePayrollRate")).doubleValue(),
+                            data.get("effectivePayrollRateFrom") == null ? null : java.time.LocalDate.parse(data.get("effectivePayrollRateFrom").toString()),
+                            data.get("effectivePayrollRateTo") == null ? null : java.time.LocalDate.parse(data.get("effectivePayrollRateTo").toString()));
+                } catch (IllegalArgumentException | java.time.DateTimeException ex) {
+                    throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getMessage());
+                }
+            } else {
+                rateService.saveRate(job, employee, normalRate, overtimeRate);
+            }
         }
         return ResponseEntity.ok().build();
     }

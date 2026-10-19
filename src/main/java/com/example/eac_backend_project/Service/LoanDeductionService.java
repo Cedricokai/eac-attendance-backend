@@ -50,10 +50,21 @@ public class LoanDeductionService {
      */
     @Transactional
     public void processLoanDeductions(Long periodId) {
+        processLoanDeductions(periodId, null);
+    }
+
+    public boolean hasLoanDeductionsForEmployee(Long periodId, Long employeeId) {
+        return employeeId == null ? hasLoanDeductionsForPeriod(periodId)
+                : loanDeductionHistoryRepository.findByPayrollPeriodId(periodId).stream()
+                    .anyMatch(history -> employeeId.equals(history.getEmployeeId()));
+    }
+
+    @Transactional
+    public void processLoanDeductions(Long periodId, Long selectedEmployeeId) {
         logger.info("Processing loan deductions for period ID: {}", periodId);
 
         // ==================== CHECK IF ALREADY PROCESSED ====================
-        if (hasLoanDeductionsForPeriod(periodId)) {
+        if (selectedEmployeeId != null && hasLoanDeductionsForEmployee(periodId, selectedEmployeeId)) {
             logger.warn("Loan deductions already processed for period {}. Skipping duplicate processing.", periodId);
             return;
         }
@@ -62,7 +73,10 @@ public class LoanDeductionService {
         String periodName = getPeriodName(periodId);
         logger.info("Processing loan deductions for period: {} ({})", periodName, periodId);
 
-        List<PayrollRecord> records = payrollRepository.findByPeriodId(periodId);
+        List<PayrollRecord> records = payrollRepository.findByPeriodId(periodId).stream()
+                .filter(row -> selectedEmployeeId == null || (row.getEmployee() != null
+                        && selectedEmployeeId.equals(row.getEmployee().getId())))
+                .collect(Collectors.toList());
 
         if (records.isEmpty()) {
             logger.warn("No payroll records found for period ID: {}", periodId);
@@ -80,6 +94,7 @@ public class LoanDeductionService {
             }
 
             Long employeeId = record.getEmployee().getId();
+            if (hasLoanDeductionsForEmployee(periodId, employeeId)) continue;
             logger.debug("Processing loan deductions for employee: {}", employeeId);
 
             try {
@@ -289,6 +304,7 @@ public class LoanDeductionService {
                     logger.debug("Cleared active loan flags for employee {} (no deductions applied)", employeeId);
                 }
             } catch (Exception e) {
+                if (selectedEmployeeId != null) throw new IllegalStateException("Failed to process employee loans", e);
                 logger.error("Failed to process loans for employee {}: {}",
                         record.getEmployee() != null ? record.getEmployee().getId() : "unknown",
                         e.getMessage(), e);

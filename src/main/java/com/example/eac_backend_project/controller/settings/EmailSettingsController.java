@@ -42,6 +42,9 @@ public class EmailSettingsController {
         dto.setOvertimeRequestRecipients(emailRecipientHelper.parseEmailRecipients(settings.getOvertimeRequestRecipients()));
         dto.setAttendanceValidationRecipients(emailRecipientHelper.parseEmailRecipients(settings.getAttendanceValidationRecipients()));
         dto.setLeaveApprovalRecipients(emailRecipientHelper.parseEmailRecipients(settings.getLeaveApprovalRecipients()));
+        dto.setAccountRequestRecipients(emailRecipientHelper.parseEmailRecipients(settings.getAccountRequestRecipients()));
+        dto.setSupportRequestRecipients(emailRecipientHelper.parseEmailRecipients(settings.getSupportRequestRecipients()));
+        dto.setPettyCashRequestRecipients(emailRecipientHelper.parseEmailRecipients(settings.getPettyCashRequestRecipients()));
 
         return ResponseEntity.ok(dto);
     }
@@ -58,6 +61,9 @@ public class EmailSettingsController {
         currentSettings.setOvertimeRequestRecipients(emailRecipientHelper.formatEmailList(dto.getOvertimeRequestRecipients()));
         currentSettings.setAttendanceValidationRecipients(emailRecipientHelper.formatEmailList(dto.getAttendanceValidationRecipients()));
         currentSettings.setLeaveApprovalRecipients(emailRecipientHelper.formatEmailList(dto.getLeaveApprovalRecipients()));
+        currentSettings.setAccountRequestRecipients(emailRecipientHelper.formatEmailList(dto.getAccountRequestRecipients()));
+        currentSettings.setSupportRequestRecipients(emailRecipientHelper.formatEmailList(dto.getSupportRequestRecipients()));
+        currentSettings.setPettyCashRequestRecipients(emailRecipientHelper.formatEmailList(dto.getPettyCashRequestRecipients()));
 
         // Convert SystemSettings to SystemSettingsDTO for the service method
         SystemSettingsDTO settingsDTO = convertToDTO(currentSettings);
@@ -106,6 +112,9 @@ public class EmailSettingsController {
         dto.setOvertimeRequestRecipients(settings.getOvertimeRequestRecipients());
         dto.setAttendanceValidationRecipients(settings.getAttendanceValidationRecipients());
         dto.setLeaveApprovalRecipients(settings.getLeaveApprovalRecipients());
+        dto.setAccountRequestRecipients(settings.getAccountRequestRecipients());
+        dto.setSupportRequestRecipients(settings.getSupportRequestRecipients());
+        dto.setPettyCashRequestRecipients(settings.getPettyCashRequestRecipients());
 
         // Convert employeeCategories from JSON string to List<String>
         List<String> employeeCategories = new ArrayList<>();

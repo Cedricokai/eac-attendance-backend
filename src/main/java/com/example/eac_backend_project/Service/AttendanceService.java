@@ -56,6 +56,8 @@ import java.util.stream.Collectors;
 @Service
 
 public class AttendanceService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private TimesheetRepository payrollTimesheetRepository;
 
 
 
@@ -179,6 +181,164 @@ public class AttendanceService {
 
 
 
+    @Transactional
+    public void refreshPendingCheckInStatuses() {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Africa/Accra"));
+        for (Attendance attendance : attendanceRepository.findByDate(today)) {
+            if (attendance.getCheckIn() != null && attendance.getCheckOut() == null
+                    && "Half Day".equalsIgnoreCase(attendance.getStatus())) {
+                applyCheckInStatus(attendance);
+                attendanceRepository.save(attendance);
+            }
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.eac_backend_project.Service.settings.AttendanceCodeSettingsService holidayCodeSettingsService;
+
+    private boolean isAbsentOrLeave(Attendance attendance) {
+        String status = attendance.getStatus() == null ? "" : attendance.getStatus().trim().toLowerCase(Locale.ROOT);
+        return status.contains("leave") || status.contains("sick")
+                || Set.of("absent", "a", "l", "s", "ml", "pl").contains(status);
+    }
+
+    private void applyCheckInStatus(Attendance attendance) {
+        applyCheckInStatusBeforeProjectRule(attendance);
+        if (!"TIMESHEET_SYNC".equals(attendance.getMethod())) {
+            ProjectDailyHoursRule.apply(attendance, attendance.getEmployee() == null ? null : attendance.getEmployee().getJob());
+        }
+    }
+
+    private void applyCheckInStatusBeforeProjectRule(Attendance attendance) {
+        if (isAbsentOrLeave(attendance)) return;
+        boolean holidayCredit = applyHolidayCredit(attendance);
+        if (ConfiguredJobAttendanceHours.applies(attendance)
+                && !isConfiguredWeeklyOffDay(attendance.getEmployee(), attendance.getDate())) {
+            ConfiguredJobAttendanceHours.apply(attendance);
+        }
+        if (holidayCredit) return;
+        boolean workedTimesheet = "TIMESHEET_SYNC".equals(attendance.getMethod())
+                && ((attendance.getMinimumHour() > 0)
+                    || (attendance.getOvertime() != null && attendance.getOvertime() > 0));
+        if (!workedTimesheet && attendance.getCheckIn() == null && attendance.getCheckOut() == null
+                && (isConfiguredWeeklyOffDay(attendance.getEmployee(), attendance.getDate())
+                    || "Weekend Present".equals(attendance.getStatus())
+                    || "Special Weekend Present".equals(attendance.getStatus()))) {
+            attendance.setStatus("Off Day");
+            attendance.setMinimumHour(0);
+            attendance.setOvertime(0.0);
+            return;
+        }
+        if (attendance.getCheckIn() == null) return;
+        String status = attendance.getStatus();
+        if (status != null && !Set.of("present", "late", "half day", "absent").contains(status.toLowerCase(Locale.ROOT))) return;
+        LocalTime start = LocalTime.parse(getCategoryWorkStartTime(attendance.getEmployee()));
+        attendance.setStatus(attendance.getCheckIn().isAfter(start) ? "Late"
+                : "Present");
+    }
+
+    private boolean applyHolidayCredit(Attendance attendance) {
+        String status = attendance.getStatus() == null
+                ? ""
+                : attendance.getStatus().toLowerCase(Locale.ROOT);
+
+        // Preserve leave/absence and other non-attendance statuses on holidays.
+        if (!Set.of(
+                "present",
+                "late",
+                "half day",
+                "holiday present",
+                "holiday",
+                "hp",
+                "h"
+        ).contains(status)) {
+            return false;
+        }
+
+        // This special rule applies only to configured holidays.
+        if (attendance.getDate() == null
+                || attendanceRepository.countHolidaysOnDate(attendance.getDate()) == 0) {
+            return false;
+        }
+
+        boolean hasCheckIn = attendance.getCheckIn() != null;
+        boolean hasCheckOut = attendance.getCheckOut() != null;
+        boolean worked = hasCheckIn && hasCheckOut;
+
+        // Holiday not worked.
+        if (!worked) {
+            // Do not manufacture hours from an incomplete punch.
+            if (hasCheckIn || hasCheckOut) {
+                return false;
+            }
+
+            // Preserve explicit HP from timesheet sync where the sync has no punches.
+            if ("TIMESHEET_SYNC".equals(attendance.getMethod())
+                    && Set.of("holiday present", "hp").contains(status)) {
+                return true;
+            }
+
+            double standardHours =
+                    getEmployeeStandardHours(attendance.getEmployee());
+
+            attendance.setStatus("Holiday");
+            attendance.setMinimumHour(standardHours);
+            attendance.setStandardHours(standardHours);
+            attendance.setOvertime(0.0);
+            return true;
+        }
+
+        /*
+         * HOLIDAY PRESENT (HP)
+         *
+         * Attendance stores physical hours only:
+         *
+         * Worked = Check Out - Check In
+         * NH     = min(Worked, Standard Hours)
+         * Raw OT = max(Worked - Standard Hours, 0)
+         *
+         * Example:
+         * 07:00 - 17:00 = 10 worked
+         * Standard      = 8
+         * NH            = 8
+         * Raw OT        = 2
+         *
+         * Multipliers are applied later by OvertimeService.
+         */
+        double workedHours =
+                calculateMinutesBetweenTimes(
+                        attendance.getCheckIn(),
+                        attendance.getCheckOut()
+                ) / 60.0;
+
+        double standardHours =
+                getEmployeeStandardHours(attendance.getEmployee());
+
+        double normalHours =
+                Math.min(workedHours, standardHours);
+
+        double rawOvertimeHours =
+                Math.max(0.0, workedHours - standardHours);
+
+        var code = holidayCodeSettingsService.getSettings("HP");
+
+        // If HP overtime is explicitly disabled, keep only the worked NH.
+        boolean allowOT =
+                code == null || Boolean.TRUE.equals(code.getAllowOT());
+
+        if (!allowOT) {
+            rawOvertimeHours = 0.0;
+        }
+
+        attendance.setStatus("Holiday Present");
+        attendance.setMinimumHour(normalHours);
+        attendance.setStandardHours(standardHours);
+        attendance.setOvertime(rawOvertimeHours);
+
+        return true;
+    }
+
+    @Transactional
     public Attendance createAttendance(Attendance attendance) {
 
         // Validate employee exists
@@ -188,6 +348,8 @@ public class AttendanceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
 
+
+        attendance.setEmployee(employee);
 
         // Calculate minimum hours if check-in and check-out are provided
 
@@ -200,7 +362,16 @@ public class AttendanceService {
 
 
         attendance.setEmployee(employee);
+        // A late arrival replaces the placeholder instead of creating a second daily record.
+        if (attendance.getId() == null && attendance.getDate() != null && attendance.getCheckIn() != null) {
+            attendanceRepository.findByEmployeeIdAndDate(employee.getId(), attendance.getDate())
+                    .filter(existing -> existing.getCheckIn() == null && existing.getCheckOut() == null
+                            && (("Absent".equals(existing.getStatus()) && existing.getMinimumHour() == 0)
+                            || "AUTO_HOLIDAY".equals(existing.getMethod())))
+                    .ifPresent(existing -> { attendance.setId(existing.getId()); attendance.setVersion(existing.getVersion()); });
+        }
 
+        applyCheckInStatus(attendance);
         Attendance savedAttendance = attendanceRepository.save(attendance);
 
 
@@ -218,6 +389,11 @@ public class AttendanceService {
     public Attendance updateAttendance(Long id, Attendance attendanceDetails) {
 
         Attendance attendance = getAttendanceById(id);
+        // Recalculation follows the employee's current project assignment.
+        if (attendance.getEmployee() != null && attendance.getEmployee().getId() != null) {
+            attendance.setEmployee(employeeRepository.findById(attendance.getEmployee().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee not found")));
+        }
 
 
 
@@ -233,20 +409,17 @@ public class AttendanceService {
 
 
 
+        if (attendanceDetails.getCheckIn() != null) attendance.setCheckIn(attendanceDetails.getCheckIn());
+        if (attendanceDetails.getCheckOut() != null) attendance.setCheckOut(attendanceDetails.getCheckOut());
         // Handle time changes and recalculate hours if times changed
 
-        if (attendanceDetails.getCheckIn() != null && attendanceDetails.getCheckOut() != null) {
-
-            attendance.setCheckIn(attendanceDetails.getCheckIn());
-
-            attendance.setCheckOut(attendanceDetails.getCheckOut());
-
+        if (!isAbsentOrLeave(attendance) && attendance.getCheckIn() != null && attendance.getCheckOut() != null) {
             calculateAndSetMinimumHours(attendance);
-
         }
 
 
 
+        applyCheckInStatus(attendance);
         Attendance savedAttendance = attendanceRepository.save(attendance);
 
 
@@ -262,14 +435,24 @@ public class AttendanceService {
 
 
     private void calculateAndSetMinimumHours(Attendance attendance) {
-
         LocalTime checkIn = attendance.getCheckIn();
-
         LocalTime checkOut = attendance.getCheckOut();
-
-
-
         Employee employee = attendance.getEmployee();
+
+        // If this is one of the employee's configured weekly off-days and the
+        // employee category says weekend/off-day attendance must be overtime,
+        // ALL worked hours become raw overtime. No multiplier is applied here.
+        // OvertimeService remains the only place that applies the multiplier
+        // coming from backend SystemSettings / Job configuration.
+        if (shouldTreatOffDayAttendanceAsOvertime(attendance)) {
+            double workedHours = calculateMinutesBetweenTimes(checkIn, checkOut) / 60.0;
+            attendance.setMinimumHour(0.0);
+            attendance.setStandardHours(getEmployeeStandardHours(employee));
+            attendance.setOvertime(Math.max(0.0, workedHours));
+            return;
+        }
+
+        if (applyJobScheduleHours(attendance)) return;
 
 
 
@@ -286,6 +469,14 @@ public class AttendanceService {
         double standardHours = getEmployeeStandardHours(employee);
 
 
+
+        if (checkOut.isBefore(checkIn)) {
+            double hours = calculateMinutesBetweenTimes(checkIn, checkOut) / 60.0;
+            attendance.setMinimumHour(Math.min(hours, standardHours));
+            attendance.setStandardHours(standardHours);
+            attendance.setOvertime(Math.max(0, hours - standardHours));
+            return;
+        }
 
         // Calculate window end time
 
@@ -391,7 +582,84 @@ public class AttendanceService {
 
 
 
+    /**
+     * Returns true when attendance on this date must be treated entirely as
+     * overtime. The decision is based on the employee/category configured
+     * weekly off-days and Category.weekendAttendanceAsOvertime.
+     *
+     * Day numbering follows the rest of this project:
+     * Sunday = 0, Monday = 1, ... Saturday = 6.
+     */
+    private boolean shouldTreatOffDayAttendanceAsOvertime(Attendance attendance) {
+        if (attendance == null
+                || attendance.getEmployee() == null
+                || attendance.getDate() == null
+                || attendance.getCheckIn() == null
+                || attendance.getCheckOut() == null) {
+            return false;
+        }
+
+        Employee employee = attendance.getEmployee();
+        Category category = employee.getCategory();
+
+        if (category == null || !Boolean.TRUE.equals(category.getWeekendAttendanceAsOvertime())) {
+            return false;
+        }
+
+        return isConfiguredWeeklyOffDay(employee, attendance.getDate());
+    }
+
+    /**
+     * Resolve weekly off-days in this order:
+     * 1. Employee-specific weeklyOffDays
+     * 2. Category weeklyOffDays
+     * 3. System Settings weekendDays
+     */
+    private boolean isConfiguredWeeklyOffDay(Employee employee, LocalDate date) {
+        if (employee == null || date == null) return false;
+
+        String offDays = employee.getWeeklyOffDays();
+        Category category = employee.getCategory();
+
+        if (offDays == null || "INHERIT".equalsIgnoreCase(offDays)) {
+            offDays = category != null ? category.getWeeklyOffDays() : null;
+        }
+
+        if (offDays == null || "INHERIT".equalsIgnoreCase(offDays)) {
+            SystemSettings settings = systemSettingsRepository.findAll().stream().findFirst().orElse(null);
+            offDays = settings != null ? settings.getWeekendDays() : null;
+        }
+
+        if (offDays == null || offDays.isBlank()) return false;
+
+        int configuredDay = date.getDayOfWeek().getValue() % 7;
+        return Arrays.stream(offDays.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .anyMatch(value -> value.equals(String.valueOf(configuredDay)));
+    }
+
+    private boolean hasJobSchedule(Employee employee) {
+        return employee != null && employee.getJob() != null
+                && employee.getJob().getWorkStartTime() != null;
+    }
+
+    private boolean applyJobScheduleHours(Attendance attendance) {
+        Employee employee = attendance.getEmployee();
+        if (!hasJobSchedule(employee) || attendance.getCheckIn() == null || attendance.getCheckOut() == null) return false;
+        double standardHours = getEmployeeStandardHours(employee);
+        JobScheduleHours.Result hours = JobScheduleHours.calculate(employee.getJob().getWorkStartTime(),
+                standardHours, attendance.getCheckIn(), attendance.getCheckOut());
+        attendance.setMinimumHour(hours.normalHours());
+        attendance.setOvertime(hours.overtimeHours());
+        attendance.setStandardHours(standardHours);
+        return true;
+    }
+
     private double getEmployeeStandardHours(Employee employee) {
+        if (hasJobSchedule(employee) && employee.getJob().getStandardWorkHours() != null) {
+            return employee.getJob().getStandardWorkHours().doubleValue();
+        }
 
         if (employee == null) return 8.0;
 
@@ -459,6 +727,7 @@ public class AttendanceService {
 
                 .stream()
 
+                .filter(a -> !"AUTO_HOLIDAY".equals(a.getMethod()) || a.getCheckIn() != null || a.getCheckOut() != null)
                 .map(a -> a.getEmployee().getId())
 
                 .collect(Collectors.toList());
@@ -583,6 +852,9 @@ public class AttendanceService {
 
 
 
+        if (mobileAttendance.getCheckIn() == null && mobileAttendance.getCheckOut() != null) {
+            mobileAttendance.setDate(shiftDateForEvent(employee, mobileAttendance.getDate(), mobileAttendance.getCheckOut(), true));
+        }
         // Check for existing record
 
         Optional<Attendance> existingRecord = attendanceRepository.findByEmployeeIdAndDate(
@@ -600,10 +872,17 @@ public class AttendanceService {
         if (existingRecord.isPresent()) {
 
             attendance = existingRecord.get();
+            if ("AUTO_HOLIDAY".equals(attendance.getMethod())
+                    && (mobileAttendance.getCheckIn() != null || mobileAttendance.getCheckOut() != null)) {
+                attendance.setMinimumHour(0.0);
+                attendance.setOvertime(0.0);
+                attendance.setMethod("MOBILE");
+                attendance.setStatus("Present");
+            }
 
-            boolean hadCheckIn = attendance.getCheckIn() != null;
-
-            boolean hadCheckOut = attendance.getCheckOut() != null;
+            if (attendance.getCheckIn() == null && mobileAttendance.getCheckIn() != null) {
+                attendance.setCheckIn(mobileAttendance.getCheckIn());
+            }
 
 
 
@@ -663,6 +942,7 @@ public class AttendanceService {
 
 
 
+        applyCheckInStatus(attendance);
         Attendance savedAttendance = attendanceRepository.save(attendance);
 
         createOvertimeIfApplicable(savedAttendance);
@@ -674,6 +954,7 @@ public class AttendanceService {
 
 
     private void calculateWorkingHours(Attendance attendance) {
+        if (applyJobScheduleHours(attendance)) return;
 
         if (attendance.getCheckIn() != null && attendance.getCheckOut() != null) {
 
@@ -854,6 +1135,7 @@ public class AttendanceService {
 
 
     public String getCategoryWorkStartTime(Employee employee) {
+        if (hasJobSchedule(employee)) return employee.getJob().getWorkStartTime().toString();
 
         if (employee == null || employee.getCategory() == null) {
 
@@ -934,6 +1216,7 @@ public class AttendanceService {
             attendance.setCheckOut(dto.getCheckOut());
 
             attendance.setMinimumHour(dto.getMinimumHour());
+            boolean usedJobSchedule = applyJobScheduleHours(attendance);
 
             attendance.setShift(dto.getShift());
 
@@ -943,6 +1226,7 @@ public class AttendanceService {
 
 
 
+            applyCheckInStatus(attendance);
             Attendance savedAttendance = attendanceRepository.save(attendance);
 
             // Create overtime if applicable
@@ -951,7 +1235,9 @@ public class AttendanceService {
 
                 double standardHours = getEmployeeStandardHours(employee);
 
-                if (savedAttendance.getMinimumHour() > standardHours) {
+                if (usedJobSchedule) {
+                    createOvertimeIfApplicable(savedAttendance);
+                } else if (savedAttendance.getMinimumHour() > standardHours) {
 
                     savedAttendance.setOvertime(savedAttendance.getMinimumHour() - standardHours);
 
@@ -969,15 +1255,30 @@ public class AttendanceService {
 
 
 
-    @Transactional
+    private LocalDate biometricShiftDate(BiometricRecordDTO record) {
+        Employee employee = employeeRepository.findByIdAndActiveTrue(record.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Active employee not found"));
+        return shiftDateForEvent(employee, record.getTimestamp().toLocalDate(),
+                record.getTimestamp().toLocalTime(), "SIGN OFF".equalsIgnoreCase(record.getAction()));
+    }
 
+    private LocalDate shiftDateForEvent(Employee employee, LocalDate date, LocalTime time, boolean checkout) {
+        if (date == null || time == null || employee.getCategory() == null
+                || !Boolean.TRUE.equals(employee.getCategory().getOvernightShift())) return date;
+        LocalTime start = LocalTime.parse(getCategoryWorkStartTime(employee));
+        // Morning departures belong to the shift that started the previous evening.
+        if (checkout && time.isBefore(start)) return date.minusDays(1);
+        return date;
+    }
+
+    @Transactional
     public List<Attendance> processBiometricRecords(List<BiometricRecordDTO> records) {
 
         return records.stream()
 
                 .collect(Collectors.groupingBy(
 
-                        r -> new EmployeeDateKey(r.getEmployeeId(), r.getTimestamp().toLocalDate())
+                        r -> new EmployeeDateKey(r.getEmployeeId(), biometricShiftDate(r))
 
                 ))
 
@@ -1016,6 +1317,7 @@ public class AttendanceService {
                                 a.setDate(key.date());
 
                                 a.setBiometric(true);
+                                a.setShift(employee.getCategory() != null && Boolean.TRUE.equals(employee.getCategory().getOvernightShift()) ? "Night" : "Day");
 
                                 a.setStatus("Half Day");
 
@@ -1025,6 +1327,12 @@ public class AttendanceService {
 
 
 
+                    if ("AUTO_HOLIDAY".equals(attendance.getMethod())) {
+                        attendance.setMinimumHour(0.0);
+                        attendance.setOvertime(0.0);
+                        attendance.setMethod("BIOMETRIC");
+                        attendance.setBiometric(true);
+                    }
                     // Apply biometric actions from this request
 
                     for (BiometricRecordDTO record : dayRecords) {
@@ -1091,7 +1399,7 @@ public class AttendanceService {
 
                     // FIXED: Calculate hours using the overnight-aware method
 
-                    if (hasCheckIn && hasCheckOut) {
+                    if (hasCheckIn && hasCheckOut && !applyJobScheduleHours(attendance)) {
 
                         // Use calculateMinutesBetweenTimes instead of ChronoUnit.MINUTES.between
 
@@ -1121,6 +1429,7 @@ public class AttendanceService {
 
 
 
+                    applyCheckInStatus(attendance);
                     Attendance savedAttendance = attendanceRepository.save(attendance);
 
 
@@ -1155,169 +1464,54 @@ public class AttendanceService {
 
 
 
-    @Scheduled(cron = "0 0 18 * * *")
-
     @Transactional
 
-    public void createAbsentRecordsForPreviousDay() {
-
-        LocalDate previousDay = LocalDate.now().minusDays(1);
-
-
-
-        // Get schedule settings
-
-        AttendanceReportScheduleSettings settings = scheduleRepository.findFirstByOrderByIdAsc()
-
-                .orElse(null);
-
-
-
-        // Check if auto-absent marking is enabled
-
-        if (settings == null || !settings.isAutoAbsentEnabled()) {
-
-            System.out.println("Auto-absent marking is disabled. No records created.");
-
-            return;
-
-        }
-
-
-
-        // Get all active employees
-
-        List<Employee> activeEmployees = employeeRepository.findByActiveTrue();
-
-
-
-        // Get employees who already have attendance for previous day
-
-        List<Attendance> existingAttendances = attendanceRepository.findByDate(previousDay);
-
-        Set<Long> employeesWithAttendance = existingAttendances.stream()
-
-                .map(a -> a.getEmployee().getId())
-
-                .collect(Collectors.toSet());
-
-
-
-        // Get employees on approved leave for previous day
-
-        List<Leave> activeLeaves = leaveRepository.findByStatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-
-                "Approved", previousDay);
-
-        Set<Long> employeesOnLeave = activeLeaves.stream()
-
-                .map(l -> l.getEmployee().getId())
-
-                .collect(Collectors.toSet());
-
-
-
-        // Get categories to skip (from both category flag AND schedule settings)
-
-        Set<Long> skipCategoryIds = getAllCategoryIdsToSkipForAutoAbsent(settings);
-
-
-
-        List<Attendance> absentRecords = new ArrayList<>();
-
-        List<String> skippedEmployees = new ArrayList<>();
-
-
-
-        for (Employee employee : activeEmployees) {
-
-            // Skip if already has attendance
-
-            if (employeesWithAttendance.contains(employee.getId())) {
-
-                continue;
-
-            }
-
-
-
-            // Skip if on approved leave
-
-            if (employeesOnLeave.contains(employee.getId())) {
-
-                continue;
-
-            }
-
-
-
-            // Skip if employee's category should be skipped
-
-            if (employee.getCategory() != null &&
-
-                    skipCategoryIds.contains(employee.getCategory().getId())) {
-
-                skippedEmployees.add(employee.getFirstName() + " " + employee.getLastName() +
-
-                        " (" + employee.getCategory().getName() + ")");
-
-                continue;
-
-            }
-
-
-
-            // Create absent record
-
-            Attendance absent = new Attendance();
-
-            absent.setEmployee(employee);
-
-            absent.setDate(previousDay);
-
-            absent.setStatus("Absent");
-
-            absent.setShift("Day");
-
-            absent.setWorkType("Regular");
-
-            absent.setMinimumHour(0.0);
-
-            absent.setOvertime(0.0);
-
-            absent.setStandardHours(getEmployeeStandardHours(employee));
-
-            absent.setBiometric(false);
-
-
-
-            absentRecords.add(absent);
-
-        }
-
-
-
-        if (!absentRecords.isEmpty()) {
-
-            attendanceRepository.saveAll(absentRecords);
-
-            System.out.println("✅ Created " + absentRecords.size() + " absent records for " + previousDay);
-
-        }
-
-
-
-        if (!skippedEmployees.isEmpty()) {
-
-            System.out.println("⏭️ Skipped auto-absent for " + skippedEmployees.size() + " employees: " +
-
-                    String.join(", ", skippedEmployees));
-
-        }
-
+    public void createAbsentRecordsForToday() {
+        markAbsencesAt(java.time.LocalDateTime.now(java.time.ZoneId.of("Africa/Accra")));
     }
 
-
+    void markAbsencesAt(java.time.LocalDateTime now) {
+        var settings = scheduleRepository.findFirstByOrderByIdAsc().orElse(null);
+        if (settings == null || !settings.isAutoAbsentEnabled()) return;
+        Set<Long> skipCategoryIds = getAllCategoryIdsToSkipForAutoAbsent(settings);
+        List<Attendance> absentRecords = new ArrayList<>();
+        Map<LocalDate, Set<Long>> recorded = new HashMap<>();
+        Map<LocalDate, Set<Long>> onLeave = new HashMap<>();
+        Map<LocalDate, Boolean> holidayDates = new HashMap<>();
+        for (Employee employee : employeeRepository.findByActiveTrue()) {
+            var category = employee.getCategory();
+            if (category != null && skipCategoryIds.contains(category.getId())) continue;
+            LocalTime startTime = LocalTime.parse(getCategoryWorkStartTime(employee));
+            boolean overnight = category != null && Boolean.TRUE.equals(category.getOvernightShift());
+            LocalTime cutoff = category != null && category.getAbsenceCutoffTime() != null
+                    ? category.getAbsenceCutoffTime() : settings.getAutoAbsentCutoffTime();
+            if (cutoff == null) continue;
+            LocalDate shiftDate = overnight && now.toLocalTime().isBefore(startTime)
+                    ? now.toLocalDate().minusDays(1) : now.toLocalDate();
+            if (holidayDates.computeIfAbsent(shiftDate, date -> attendanceRepository.countHolidaysOnDate(date) > 0)) continue;
+            var shiftStart = shiftDate.atTime(startTime);
+            var cutoffAt = shiftDate.atTime(cutoff);
+            if (overnight && cutoff.isBefore(startTime)) cutoffAt = cutoffAt.plusDays(1);
+            if (!now.isAfter(shiftStart) || now.isBefore(cutoffAt)) continue;
+            if (employee.getStartDate() != null && employee.getStartDate().isAfter(shiftDate)) continue;
+            Set<Long> attendanceIds = recorded.computeIfAbsent(shiftDate, date -> attendanceRepository.findByDate(date)
+                    .stream().map(a -> a.getEmployee().getId()).collect(Collectors.toSet()));
+            if (attendanceIds.contains(employee.getId())) continue;
+            Set<Long> leaveIds = onLeave.computeIfAbsent(shiftDate, date -> leaveRepository
+                    .findByStatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual("Approved", date)
+                    .stream().map(l -> l.getEmployee().getId()).collect(Collectors.toSet()));
+            if (leaveIds.contains(employee.getId())) continue;
+            Attendance absent = new Attendance();
+            boolean offDay = isConfiguredWeeklyOffDay(employee, shiftDate);
+            absent.setEmployee(employee); absent.setDate(shiftDate); absent.setStatus(offDay ? "Off Day" : "Absent");
+            absent.setShift(overnight ? "Night" : "Day"); absent.setWorkType("Regular");
+            absent.setMinimumHour(0); absent.setOvertime(0.0);
+            absent.setStandardHours(getEmployeeStandardHours(employee));
+            absent.setBiometric(false); absent.setMethod(offDay ? "AUTO_OFF" : "AUTO_ABSENT");
+            absentRecords.add(absent); attendanceIds.add(employee.getId());
+        }
+        if (!absentRecords.isEmpty()) attendanceRepository.saveAll(absentRecords);
+    }
 
     // Helper method to get all category IDs to skip
 
@@ -1402,6 +1596,11 @@ public class AttendanceService {
     @Transactional
 
     public List<Attendance> createBatchAttendances(List<Attendance> attendances) {
+        return createBatchAttendances(attendances, false);
+    }
+
+    @Transactional
+    public List<Attendance> createBatchAttendances(List<Attendance> attendances, boolean overwriteExisting) {
 
         List<Attendance> saved = new ArrayList<>();
 
@@ -1457,10 +1656,69 @@ public class AttendanceService {
 
 
 
-            if (exists) continue;
+            if (exists) {
+                var existing = attendanceRepository.findByEmployeeIdAndDate(employee.getId(), attendance.getDate()).orElse(null);
+                if (existing == null) continue;
+                if (!overwriteExisting && (!"AUTO_HOLIDAY".equals(existing.getMethod())
+                        || existing.getCheckIn() != null || existing.getCheckOut() != null
+                        || attendance.getCheckIn() == null)) continue;
+                attendance.setId(existing.getId());
+                attendance.setVersion(existing.getVersion());
+            }
 
 
 
+            if (overwriteExisting) {
+                if (payrollTimesheetRepository != null) {
+                    Timesheet sheet = attendance.getTimesheetId() == null
+                            ? payrollTimesheetRepository.findByEmployeeIdAndDate(employee.getId(), attendance.getDate()).orElse(null)
+                            : payrollTimesheetRepository.findById(attendance.getTimesheetId())
+                                    .orElseThrow(() -> new IllegalArgumentException("Timesheet not found"));
+                    if (sheet != null) {
+                        if (!employee.getId().equals(sheet.getEmployee().getId()) || !attendance.getDate().equals(sheet.getDate())) {
+                            throw new IllegalArgumentException("Timesheet must match attendance employee and date");
+                        }
+                        if (sheet.getJob() != null && !sheet.isPayrollApproved()) {
+                            throw new IllegalArgumentException("Project timesheet " + sheet.getId() + " must be approved before attendance sync");
+                        }
+                        if (sheet.getJob() != null) {
+                            attendance.setMinimumHour(sheet.getRegularHours());
+                            attendance.setOvertime(sheet.getOvertimeHours());
+                            attendance.setCheckIn(null);
+                            attendance.setCheckOut(null);
+                            String code = sheet.getAttendanceCode() == null ? "P" : sheet.getAttendanceCode();
+                            attendance.setStatus(switch (code) {
+                                case "A" -> "Absent";
+                                case "OFF" -> "Off Day";
+                                case "WP" -> "Weekend Present";
+                                case "HP" -> "Holiday Present";
+                                case "H" -> "Holiday";
+                                case "L", "S", "ML", "PL" -> "On Leave";
+                                default -> "Present";
+                            });
+                        }
+                        ProjectDailyHoursRule.apply(attendance, sheet.getJob());
+                        attendance.setTimesheetApprovalFingerprint(sheet.payrollFingerprint());
+                        attendance.setTimesheetId(sheet.getId());
+                        attendance.setProjectId(sheet.getJob() == null ? null : sheet.getJob().getId());
+                        attendance.setProjectName(sheet.getJob() == null ? null : sheet.getJob().getName());
+                    } else {
+                        attendance.setTimesheetId(null);
+                        attendance.setProjectId(null);
+                        attendance.setProjectName(null);
+                    }
+                }
+                attendance.setMethod("TIMESHEET_SYNC");
+                attendance.setBiometric(false);
+                if (attendance.getOvertime() == null) attendance.setOvertime(0.0);
+                if (attendance.getStandardHours() == null) attendance.setStandardHours(getEmployeeStandardHours(employee));
+            }
+            applyCheckInStatus(attendance);
+            if (overwriteExisting && attendance.getTimesheetApprovalFingerprint() != null) {
+                Timesheet approvedSheet = payrollTimesheetRepository.findById(attendance.getTimesheetId()).orElse(null);
+                if (approvedSheet != null) ProjectDailyHoursRule.apply(attendance, approvedSheet.getJob());
+                attendance.setTimesheetApprovedWork(attendance.approvedWorkSignature());
+            }
             Attendance savedAttendance = attendanceRepository.save(attendance);
 
             saved.add(savedAttendance);
@@ -1482,253 +1740,169 @@ public class AttendanceService {
 
 
     private void createOvertimeIfApplicable(Attendance attendance) {
-
-        if (attendance.getOvertime() != null && attendance.getOvertime() > 0) {
-
-            createOvertimeFromAttendance(attendance);
-
+        if (attendance == null || attendance.getId() == null) {
+            return;
         }
 
+        double rawOvertime =
+                attendance.getOvertime() != null
+                        ? attendance.getOvertime()
+                        : 0.0;
+
+        /*
+         * HP must create/synchronize an Overtime record even when Raw OT = 0.
+         * Example: NH 8, Raw OT 0, Holiday x2 => Final OT 16.
+         */
+        boolean holidayPresent =
+                "Holiday Present".equalsIgnoreCase(attendance.getStatus());
+
+        if (holidayPresent || rawOvertime > 0) {
+            createOvertimeFromAttendance(attendance);
+            return;
+        }
+
+        // Clear a previously-linked overtime record when this attendance no
+        // longer produces overtime.
+        overtimeRepository.findByAttendanceId(attendance.getId())
+                .ifPresent(overtime -> {
+                    overtime.setRawOvertimeHours(0.0);
+                    overtime.setOvertimeHours(0.0);
+                    overtime.setCalculatedOvertimePay(0.0);
+                    overtimeRepository.save(overtime);
+                });
     }
 
 
 
     private void createOvertimeFromAttendance(Attendance attendance) {
-
         try {
-
-            if (attendance == null ||
-
-                    attendance.getId() == null ||
-
-                    attendance.getEmployee() == null ||
-
-                    attendance.getEmployee().getId() == null ||
-
-                    attendance.getDate() == null) {
-
+            if (attendance == null
+                    || attendance.getId() == null
+                    || attendance.getEmployee() == null
+                    || attendance.getEmployee().getId() == null
+                    || attendance.getDate() == null) {
                 return;
-
             }
 
+            double overtimeHours =
+                    attendance.getOvertime() != null
+                            ? attendance.getOvertime()
+                            : 0.0;
 
+            boolean holidayPresent =
+                    "Holiday Present".equalsIgnoreCase(attendance.getStatus());
 
-            Double overtimeHours = attendance.getOvertime();
-
-
-
-            if (overtimeHours == null || overtimeHours <= 0) {
-
+            // Ordinary attendance needs Raw OT > 0. HP is allowed through even
+            // with Raw OT = 0 because NH x Holiday Multiplier still contributes.
+            if (!holidayPresent && overtimeHours <= 0) {
                 return;
-
             }
-
-
 
             Long employeeId = attendance.getEmployee().getId();
-
             LocalDate date = attendance.getDate();
 
-
-
             Optional<Overtime> existingOvertime =
-
                     overtimeRepository.findByAttendanceId(attendance.getId());
 
-
-
             if (existingOvertime.isEmpty()) {
-
                 existingOvertime =
-
                         overtimeRepository.findFirstByEmployeeIdAndDate(
-
                                 employeeId,
-
                                 date
-
                         );
-
             }
 
-
-
-            Overtime overtime = existingOvertime.orElseGet(Overtime::new);
-
-
+            Overtime overtime =
+                    existingOvertime.orElseGet(Overtime::new);
 
             overtime.setEmployee(attendance.getEmployee());
-
             overtime.setAttendance(attendance);
-
             overtime.setDate(date);
-
-            overtime.setOvertimeHours(overtimeHours);
-
-            overtime.setRawOvertimeHours(overtimeHours);
-
-            overtime.setStatus(
-
-                    overtime.getStatus() != null
-
-                            ? overtime.getStatus()
-
-                            : "Pending"
-
-            );
-
-
-
-            String workStartTimeStr =
-
-                    getCategoryWorkStartTime(attendance.getEmployee());
-
-
-
-            LocalTime workStartTime =
-
-                    LocalTime.parse(workStartTimeStr);
-
-
-
-            double standardHours =
-
-                    getEmployeeStandardHours(attendance.getEmployee());
-
-
-
-            int windowEndMinutes =
-
-                    workStartTime.getHour() * 60
-
-                            + workStartTime.getMinute()
-
-                            + (int) Math.round(standardHours * 60);
-
-
-
-            LocalTime windowEndTime = LocalTime.of(
-
-                    (windowEndMinutes / 60) % 24,
-
-                    windowEndMinutes % 60
-
-            );
-
-
-
-            overtime.setStartTime(windowEndTime);
-
-            overtime.setEndTime(attendance.getCheckOut());
-
-
-
-            SystemSettings systemSettings =
-
-                    systemSettingsRepository.findFirstByOrderByIdAsc()
-
-                            .orElse(new SystemSettings());
-
-
-
-            double multiplier =
-
-                    systemSettings.getDefaultOvertimeMultiplier() != null
-
-                            ? systemSettings.getDefaultOvertimeMultiplier()
-
-                            : 1.5;
-
-
-
-            if (date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY &&
-
-                    Boolean.TRUE.equals(
-
-                            systemSettings.getDoubleTimeOnSunday()
-
-                    )) {
-
-
-
-                multiplier =
-
-                        systemSettings.getSundayOvertimeMultiplier() != null
-
-                                ? systemSettings.getSundayOvertimeMultiplier()
-
-                                : 2.0;
-
-            }
-
-
-
-            double hourlyRate =
-
-                    attendance.getEmployee().getMinimumRate() != null
-
-                            ? attendance.getEmployee().getMinimumRate()
-
-                            : systemSettings.getHourlyRate() != null
-
-                            ? systemSettings.getHourlyRate()
-
-                            : 10.0;
-
-
-
-            overtime.setBaseHourlyRate(hourlyRate);
-
-            overtime.setOvertimeMultiplier(multiplier);
-
+            // Re-evaluate current settings instead of retaining the old multiplier/treatment.
+            overtime.setOvertimeMultiplier(null);
             overtime.setMultiplierAppliedToHours(false);
 
-            overtime.setCalculatedOvertimePay(
+            // Attendance stores RAW overtime only.
+            overtime.setRawOvertimeHours(overtimeHours);
 
-                    hourlyRate * multiplier * overtimeHours
+            // Required because OvertimeService validates/calculates this field.
+            // For HP, OvertimeService replaces this with:
+            // (NH x Holiday Multiplier) + (Raw OT x Default Multiplier).
+            overtime.setOvertimeHours(overtimeHours);
 
-            );
+            double standardHours =
+                    getEmployeeStandardHours(attendance.getEmployee());
 
+            int standardMinutes =
+                    (int) Math.round(standardHours * 60);
 
+            boolean allWorkedHoursAreOvertime =
+                    shouldTreatOffDayAttendanceAsOvertime(attendance);
 
-            Overtime saved = overtimeRepository.save(overtime);
+            if (allWorkedHoursAreOvertime) {
+                overtime.setMultiplierAppliedToHours(true);
+            }
 
+            LocalTime overtimeStart;
 
+            if (allWorkedHoursAreOvertime
+                    && attendance.getCheckIn() != null) {
+
+                overtimeStart = attendance.getCheckIn();
+
+            } else {
+
+                overtimeStart =
+                        attendance.getCheckIn() != null
+                                ? attendance.getCheckIn().plusMinutes(standardMinutes)
+                                : LocalTime.parse(
+                                getCategoryWorkStartTime(
+                                        attendance.getEmployee()
+                                )
+                        ).plusMinutes(standardMinutes);
+
+                if (hasJobSchedule(attendance.getEmployee())
+                        && attendance.getCheckIn() != null
+                        && attendance.getCheckOut() != null) {
+
+                    overtimeStart =
+                            JobScheduleHours.calculate(
+                                    attendance.getEmployee()
+                                            .getJob()
+                                            .getWorkStartTime(),
+                                    standardHours,
+                                    attendance.getCheckIn(),
+                                    attendance.getCheckOut()
+                            ).overtimeStart();
+                }
+            }
+
+            overtime.setStartTime(overtimeStart);
+            overtime.setEndTime(attendance.getCheckOut());
+
+            Overtime saved =
+                    overtimeService.createOvertime(overtime);
 
             System.out.println(
-
                     "Overtime synchronized. Attendance ID: "
-
                             + attendance.getId()
-
                             + ", Overtime ID: "
-
                             + saved.getId()
-
+                            + ", Raw OT: "
+                            + overtimeHours
+                            + ", Final OT: "
+                            + saved.getOvertimeHours()
             );
-
-
 
         } catch (Exception e) {
-
             System.err.println(
-
                     "Failed to synchronize overtime for attendance ID "
-
                             + attendance.getId()
-
                             + ": "
-
                             + e.getMessage()
-
             );
-
-
-
-            e.printStackTrace();
-
+            throw new IllegalStateException("Unable to synchronize overtime for attendance " + attendance.getId(), e);
         }
-
     }
 
     private long calculateMinutesBetweenTimes(LocalTime start, LocalTime end) {
@@ -1737,9 +1911,7 @@ public class AttendanceService {
 
             // Overnight shift
 
-            return ChronoUnit.MINUTES.between(start, LocalTime.MIDNIGHT) +
-
-                    ChronoUnit.MINUTES.between(LocalTime.MIDNIGHT, end);
+            return ChronoUnit.MINUTES.between(start, end) + 24 * 60;
 
         }
 
@@ -1881,6 +2053,7 @@ public class AttendanceService {
 
 
 
+        applyCheckInStatus(attendance);
         Attendance saved = attendanceRepository.save(attendance);
 
 
@@ -1983,6 +2156,7 @@ public class AttendanceService {
 
 
 
+                applyCheckInStatus(a);
                 Attendance saved = attendanceRepository.save(a);
 
                 createOvertimeIfApplicable(saved);
@@ -2008,3 +2182,4 @@ public class AttendanceService {
 
 
 }
+

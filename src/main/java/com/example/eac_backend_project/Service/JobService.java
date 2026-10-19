@@ -63,6 +63,9 @@ public class JobService {
     private TimesheetService timesheetService;
 
     @Autowired
+    private TimesheetRepository projectRuleTimesheets;
+
+    @Autowired
     private CostTransactionRepository costTransactionRepository;
 
     @Autowired
@@ -89,8 +92,18 @@ public class JobService {
     }
 
     public Job createJob(Job job) {
+        ProjectDailyHoursRule.validate(job);
         if (job.getStandardWorkHours() == null) {
             job.setStandardWorkHours(8);
+        }
+        if (job.getBillingHours() == null) {
+            job.setBillingHours(job.getStandardWorkHours().doubleValue());
+        }
+        if (job.getExpectedOvertimeHours() == null) {
+            job.setExpectedOvertimeHours(0.0);
+        }
+        if (job.getExpectedOvertimeHours() < 0) {
+            throw new IllegalArgumentException("Expected overtime hours cannot be negative");
         }
 
         System.out.println("=== CREATING JOB WITH ===");
@@ -150,10 +163,22 @@ public class JobService {
         return savedJob;
     }
 
+    @Transactional
     public Job updateJob(Long id, Job jobDetails) {
+        ProjectDailyHoursRule.validate(jobDetails);
         Job job = jobRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Job not found with id: " + id));
 
+        boolean ruleChanged = !Objects.equals(Boolean.TRUE.equals(job.getDailyHoursTopUpEnabled()), Boolean.TRUE.equals(jobDetails.getDailyHoursTopUpEnabled()))
+                || (Boolean.TRUE.equals(jobDetails.getDailyHoursTopUpEnabled()) && (
+                    !Objects.equals(job.getDailyHoursTopUpThreshold(),jobDetails.getDailyHoursTopUpThreshold())
+                    || !Objects.equals(job.getDailyHoursTopUpTarget(),jobDetails.getDailyHoursTopUpTarget())
+                    || !Objects.equals(job.getStandardWorkHours(),jobDetails.getStandardWorkHours())));
+        if (ruleChanged) {
+            var sheets = projectRuleTimesheets.findByJobId(id);
+            sheets.forEach(com.example.eac_backend_project.entity.attendance.Timesheet::resetPayrollApproval);
+            projectRuleTimesheets.saveAll(sheets);
+        }
         System.out.println("=== UPDATING JOB ID: " + id + " ===");
         System.out.println("New billingReminderEnabled: " + jobDetails.isBillingReminderEnabled());
         System.out.println("New billingReminderEmails: " + jobDetails.getBillingReminderEmails());
@@ -178,15 +203,32 @@ public class JobService {
         if (jobDetails.getBudget() != null) job.setBudget(jobDetails.getBudget());
         if (jobDetails.getHourlyRate() != null) job.setHourlyRate(jobDetails.getHourlyRate());
 
+        job.setWorkStartTime(jobDetails.getWorkStartTime());
         if (jobDetails.getStandardWorkHours() != null) {
             job.setStandardWorkHours(jobDetails.getStandardWorkHours());
         } else if (job.getStandardWorkHours() == null) {
             job.setStandardWorkHours(8);
         }
-
-        if (jobDetails.getOvertimeMultiplier() != null) {
-            job.setOvertimeMultiplier(jobDetails.getOvertimeMultiplier());
+        if (jobDetails.getBillingHours() != null) {
+            job.setBillingHours(jobDetails.getBillingHours());
+        } else if (job.getBillingHours() == null) {
+            job.setBillingHours(job.getStandardWorkHours().doubleValue());
         }
+        job.setExpectedOvertimeHours(jobDetails.getExpectedOvertimeHours() != null
+                ? jobDetails.getExpectedOvertimeHours() : 0.0);
+        if (job.getExpectedOvertimeHours() < 0) {
+            throw new IllegalArgumentException("Expected overtime hours cannot be negative");
+        }
+
+        job.setDailyHoursTopUpEnabled(Boolean.TRUE.equals(jobDetails.getDailyHoursTopUpEnabled()));
+        job.setDailyHoursTopUpThreshold(jobDetails.getDailyHoursTopUpThreshold());
+        job.setDailyHoursTopUpTarget(jobDetails.getDailyHoursTopUpTarget());
+        job.setOvertimeMultiplier(jobDetails.getOvertimeMultiplier());
+        job.setUseConfiguredAttendanceHours(Boolean.TRUE.equals(jobDetails.getUseConfiguredAttendanceHours()));
+        job.setApplyOvertimeMultiplierToHours(Boolean.TRUE.equals(jobDetails.getApplyOvertimeMultiplierToHours()));
+        job.setEnforceMinimumOvertime(Boolean.TRUE.equals(jobDetails.getEnforceMinimumOvertime()));
+        job.setMinimumOvertimeHours(jobDetails.getMinimumOvertimeHours());
+        job.setAutoApproveOvertime(Boolean.TRUE.equals(jobDetails.getAutoApproveOvertime()));
        
         job.setBillOn15NextMonth(jobDetails.isBillOn15NextMonth());
         job.setBillingReminderEnabled(jobDetails.isBillingReminderEnabled());
@@ -236,6 +278,20 @@ public class JobService {
         System.out.println("✅ Job updated - Reminder Emails: " + savedJob.getBillingReminderEmails());
 
         return savedJob;
+    }
+
+    public Job updateOvertimeSettings(Long id, Double overtimeMultiplier,
+                                      Boolean applyToHours, Boolean enforceMinimum,
+                                      Double minimumHours, Boolean autoApprove) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Job not found with id: " + id));
+        job.setOvertimeMultiplier(overtimeMultiplier != null && overtimeMultiplier > 0 ? overtimeMultiplier : null);
+        job.setApplyOvertimeMultiplierToHours(Boolean.TRUE.equals(applyToHours));
+        job.setEnforceMinimumOvertime(Boolean.TRUE.equals(enforceMinimum));
+        job.setMinimumOvertimeHours(Boolean.TRUE.equals(enforceMinimum)
+                && minimumHours != null && minimumHours > 0 ? minimumHours : null);
+        job.setAutoApproveOvertime(Boolean.TRUE.equals(autoApprove));
+        return jobRepository.save(job);
     }
 
     // ==================== BILLING REMINDER METHODS ====================
@@ -1018,6 +1074,7 @@ public class JobService {
 
     @Transactional
     public Job createJob(Job job, User createdBy) {
+        ProjectDailyHoursRule.validate(job);
         Job savedJob = jobRepository.save(job);
         costCenterService.createCostCenterForJob(savedJob, createdBy);
         return savedJob;

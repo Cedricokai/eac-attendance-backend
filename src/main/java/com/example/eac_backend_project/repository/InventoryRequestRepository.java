@@ -9,6 +9,10 @@ import java.util.List;
 
 @Repository
 public interface InventoryRequestRepository extends JpaRepository<InventoryRequest, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select e from InventoryRequest e where e.id = :id")
+    java.util.Optional<InventoryRequest> findForUpdate(@org.springframework.data.repository.query.Param("id") Long id);
+
 
     List<InventoryRequest> findByRequestedBy(String requestedBy);
 

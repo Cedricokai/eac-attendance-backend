@@ -93,6 +93,7 @@ public class EmployeeService {
         employee.setJobPosition(employeeDTO.getJobPosition());
         employee.setJobGrade(employeeDTO.getJobGrade());
         employee.setWorkType(employeeDTO.getWorkType());
+        employee.setWeeklyOffDays(employeeDTO.getWeeklyOffDays());
         employee.setMinimumRate(employeeDTO.getMinimumRate());
         employee.setUsePositionRate(employeeDTO.getUsePositionRate() != null ? employeeDTO.getUsePositionRate() : false);
 
@@ -508,6 +509,7 @@ public class EmployeeService {
             if (employeeDTO.getJobPosition() != null) existingEmployee.setJobPosition(employeeDTO.getJobPosition());
             if (employeeDTO.getMinimumRate() != null) existingEmployee.setMinimumRate(employeeDTO.getMinimumRate());
             if (employeeDTO.getWorkType() != null) existingEmployee.setWorkType(employeeDTO.getWorkType());
+            if (employeeDTO.getWeeklyOffDays() != null) existingEmployee.setWeeklyOffDays(employeeDTO.getWeeklyOffDays());
             if (employeeDTO.getBasicSalary() != null) existingEmployee.setBasicSalary(employeeDTO.getBasicSalary());
             if (employeeDTO.getRentAllowance() != null) existingEmployee.setRentAllowance(employeeDTO.getRentAllowance());
             if (employeeDTO.getTransportAllowance() != null) existingEmployee.setTransportAllowance(employeeDTO.getTransportAllowance());
@@ -742,6 +744,7 @@ public class EmployeeService {
         // =========================================================
 
         dto.setId(employee.getId());
+        dto.setWeeklyOffDays(employee.getWeeklyOffDays());
         dto.setEmployeeId(employee.getEmployeeId());
         dto.setFirstName(employee.getFirstName());
         dto.setLastName(employee.getLastName());

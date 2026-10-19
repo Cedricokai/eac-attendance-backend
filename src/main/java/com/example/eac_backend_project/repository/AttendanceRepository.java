@@ -152,7 +152,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         WHERE a.date BETWEEN :startDate AND :endDate
           AND a.status IN (
               'Present',
-              'Holiday Present',
+              'Holiday Present', 'Holiday',
               'Weekend Present'
           )
           AND a.minimumHour > 0
@@ -170,6 +170,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
             SUM(a.minimumHour)
         FROM Attendance a
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
         GROUP BY a.employee.id, a.date
         """)
     List<Object[]> findDailyHoursByPeriod(
@@ -183,6 +190,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
             a.date
         FROM Attendance a
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
         """)
     List<Object[]> findAttendanceDatesByPeriod(
             @Param("startDate") LocalDate startDate,
@@ -213,7 +227,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         WHERE a.date BETWEEN :startDate AND :endDate
           AND a.status IN (
               'Present',
-              'Holiday Present',
+              'Holiday Present', 'Holiday',
               'Weekend Present',
               'On Leave'
           )
@@ -236,9 +250,16 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
             a.status
         FROM Attendance a
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
           AND a.status IN (
               'Present',
-              'Holiday Present',
+              'Holiday Present', 'Holiday',
               'Weekend Present',
               'On Leave'
           )
@@ -335,6 +356,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         FROM Attendance a
         JOIN a.employee e
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
           AND a.status IN ('Present', 'Late', 'Overtime')
           AND e.category.name = :category
         GROUP BY e.id
@@ -354,9 +382,16 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         FROM Attendance a
         JOIN a.employee e
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
           AND a.status IN (
               'Present',
-              'Holiday Present',
+              'Holiday Present', 'Holiday',
               'Weekend Present',
               'On Leave'
           )
@@ -395,6 +430,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         FROM Attendance a
         JOIN a.employee e
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
           AND e.category.name = :category
         """)
     List<Object[]> findAttendanceDatesByPeriodForCategory(
@@ -411,6 +453,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         FROM Attendance a
         JOIN a.employee e
         WHERE a.date BETWEEN :startDate AND :endDate
+          AND ((COALESCE(a.method, '') <> 'TIMESHEET_SYNC' AND a.timesheetId IS NULL AND a.projectId IS NULL)
+              OR EXISTS (SELECT t.id FROM Timesheet t WHERE t.employee.id = a.employee.id AND t.date = a.date
+                AND (a.timesheetId IS NULL OR t.id = a.timesheetId)
+                AND (t.job IS NULL OR (t.payrollApprovalStatus = 'APPROVED' AND t.payrollReviewFingerprint IS NOT NULL
+                AND a.timesheetApprovalFingerprint = t.payrollReviewFingerprint
+                AND t.payrollApprovedBy IS NOT NULL AND t.payrollApprovedAt IS NOT NULL))))
+          
           AND e.category.name = :category
         GROUP BY a.employee.id, a.date
         """)

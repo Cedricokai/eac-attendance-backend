@@ -5,7 +5,7 @@ services:
     image: mysql:8.0
     container_name: eac-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: Cedkeys@22
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: eac
       MYSQL_INITDB_SKIP_TZINFO: "yes"
@@ -31,12 +31,17 @@ services:
       context: ./eac-system
       dockerfile: Dockerfile
     container_name: eac-backend
+    volumes:
+      - /volume1/backups/eac:/volume1/backups/eac
+      - backup_settings:/var/lib/eac-backup
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eac
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: Cedkeys@22
-      JWT_SECRET: TqQmDk5oX7wEJrK6i3y5Ad0sPLlN8Z7f7jCg1lb9Vz1ApXk4Uq7FdfUqA8X0T4hE
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
       SPRING_LIQUIBASE_ENABLED: false
+      APP_BACKUP_ROOT: /volume1/backups/eac
+      APP_BACKUP_STATE_DIRECTORY: /var/lib/eac-backup
     ports:
       - "8080:8080"
     depends_on:
@@ -52,3 +57,4 @@ networks:
 
 volumes:
   mysql_data:
+  backup_settings:

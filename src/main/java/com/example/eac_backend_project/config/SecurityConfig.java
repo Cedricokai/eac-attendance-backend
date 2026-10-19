@@ -88,6 +88,8 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.POST,
                             "/auth/signin",
                             "/auth/signup",
+                            "/auth/account-requests",
+                            "/auth/support-requests",
                             "/auth/forgot-password",
                             "/auth/reset-password",
                             "/api/leave/public-approve",

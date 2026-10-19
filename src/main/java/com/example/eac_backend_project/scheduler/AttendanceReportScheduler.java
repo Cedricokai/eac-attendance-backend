@@ -29,41 +29,47 @@ public class AttendanceReportScheduler {
 
     @Scheduled(fixedRate = 60000)  // Runs every minute
     public void runEveryMinute() {
-        LocalTime now = LocalTime.now();
+        LocalTime now = LocalTime.now(java.time.ZoneId.of("Africa/Accra"));
 
         // Get schedule settings
         AttendanceReportScheduleSettings settings = settingsRepository.findFirstByOrderByIdAsc()
                 .orElse(null);
 
-        // ===== AUTO-ABSENT MARKING =====
+        attendanceService.refreshPendingCheckInStatuses();
+
+        // Recheck after the cutoff so a missed minute or restart does not skip today.
+        // Existing records and approved leave are excluded by the service.
         if (settings != null && settings.isAutoAbsentEnabled()) {
-            LocalTime targetTime = settings.getAutoAbsentRunTime();
-            if (targetTime != null && shouldRunNow(now, targetTime)) {
-                System.out.println("🕐 Running auto-absent marking at " + now + " for date: " + LocalDate.now().minusDays(1));
-                attendanceService.createAbsentRecordsForPreviousDay();
-            }
+            attendanceService.createAbsentRecordsForToday();
         }
 
-        // ===== EMAIL REPORT SCHEDULE =====
-        if (settings != null && settings.isEnabled()) {
-            LocalTime sendTime = settings.getSendTime();
-            LocalDate today = LocalDate.now();
-            LocalDate lastSent = settings.getLastSentDate();
-
-            if (sendTime != null && shouldRunNow(now, sendTime) &&
-                    (lastSent == null || !lastSent.equals(today))) {
-                System.out.println("📧 Running scheduled email report at " + now);
-                // UNCOMMENT THIS LINE:
-                autoReportService.sendDailyAutoReportIfEnabled(today);
-
-                settings.setLastSentDate(today);
-                settingsRepository.save(settings);
+        if (settings == null || !settings.isEnabled()) return;
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Africa/Accra"));
+        if (Boolean.TRUE.equals(settings.getMorningReportEnabled())
+                && due(now, settings.getMorningReportTime(), today, settings.getLastMorningReportDate())) {
+            try {
+                if (autoReportService.sendScheduledReport(today, true)) {
+                    settings.setLastMorningReportDate(today);
+                    settingsRepository.save(settings);
+                }
+            } catch (Exception e) {
+                System.err.println("Morning attendance report failed: " + e.getMessage());
+            }
+        }
+        if (!Boolean.FALSE.equals(settings.getEveningReportEnabled())
+                && due(now, settings.getSendTime(), today, settings.getLastSentDate())) {
+            try {
+                if (autoReportService.sendScheduledReport(today, false)) {
+                    settings.setLastSentDate(today);
+                    settingsRepository.save(settings);
+                }
+            } catch (Exception e) {
+                System.err.println("Evening attendance report failed: " + e.getMessage());
             }
         }
     }
 
-    private boolean shouldRunNow(LocalTime now, LocalTime targetTime) {
-        // Run within 1 minute of target time
-        return !now.isBefore(targetTime) && now.isBefore(targetTime.plusMinutes(1));
+    static boolean due(LocalTime now, LocalTime target, LocalDate today, LocalDate lastSent) {
+        return target != null && !now.isBefore(target) && !today.equals(lastSent);
     }
 }

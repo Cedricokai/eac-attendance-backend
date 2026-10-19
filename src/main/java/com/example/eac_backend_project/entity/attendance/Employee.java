@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -20,6 +21,17 @@ import java.util.List;
 @Table(name = "employee")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Employee {
+
+    // Sunday=0 through Saturday=6; null/INHERIT uses the category for employees.
+    @Column(name = "weekly_off_days")
+    private String weeklyOffDays;
+
+    public void setWeeklyOffDays(String value) {
+        if (value != null && !value.equals("INHERIT") && !value.matches("[0-6](,[0-6])*|")) {
+            throw new IllegalArgumentException("Invalid weekly off days");
+        }
+        this.weeklyOffDays = value;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -130,22 +142,26 @@ public class Employee {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id")
     @JsonIgnore
+    @ToString.Exclude
     private Job job;
 
     // ADD THIS MISSING FIELD - Supervisor job relationship
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supervised_job_id")
     @JsonIgnore
+    @ToString.Exclude
     private Job supervisedJob;
 
     // Supervisor relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supervisor_id")
     @JsonIgnore
+    @ToString.Exclude
     private Employee supervisor;
 
     @OneToMany(mappedBy = "supervisor", fetch = FetchType.LAZY)
     @JsonIgnore
+    @ToString.Exclude
     private List<Employee> supervisedEmployees = new ArrayList<>();
 
     @Column(name = "is_supervisor")

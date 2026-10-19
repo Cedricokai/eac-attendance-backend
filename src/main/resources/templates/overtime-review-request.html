@@ -26,7 +26,7 @@
                             <tr>
                                 <th style="border:1px solid #d1d5db;background:#f9fafb;">Employee</th>
                                 <th style="border:1px solid #d1d5db;background:#f9fafb;">ID</th>
-                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Job</th>
+                                <th style="border:1px solid #d1d5db;background:#f9fafb;">Project</th>
                                 <th style="border:1px solid #d1d5db;background:#f9fafb;">Date</th>
                                 <th style="border:1px solid #d1d5db;background:#f9fafb;">Time</th>
                                 <th style="border:1px solid #d1d5db;background:#f9fafb;">Hours</th>
@@ -36,7 +36,7 @@
                             <tr th:each="overtime : ${overtimes}">
                                 <td style="border:1px solid #d1d5db;" th:text="|${overtime.employee.firstName} ${overtime.employee.lastName}|">Employee</td>
                                 <td style="border:1px solid #d1d5db;" th:text="${overtime.employee.employeeId}">EMP001</td>
-                                <td style="border:1px solid #d1d5db;" th:text="${overtime.employee.job == null ? 'Not attached' : overtime.employee.job.name}">Job</td>
+                                <td style="border:1px solid #d1d5db;" th:text="${overtime.employee.job == null ? 'Not attached' : overtime.employee.job.name}">Project</td>
                                 <td style="border:1px solid #d1d5db;" th:text="${overtime.date}">Date</td>
                                 <td style="border:1px solid #d1d5db;" th:text="|${overtime.startTime} - ${overtime.endTime}|">Time</td>
                                 <td style="border:1px solid #d1d5db;" th:text="${overtime.overtimeHours}">Hours</td>

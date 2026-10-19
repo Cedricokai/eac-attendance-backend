@@ -28,6 +28,9 @@ public class SettingsService {
     private HolidayRepository holidayRepository;
 
     @Autowired
+    private com.example.eac_backend_project.Service.HolidayAttendanceService holidayAttendanceService;
+
+    @Autowired
     private AttendanceReportScheduleSettingsRepository scheduleRepository;
 
     @Autowired
@@ -96,6 +99,9 @@ public class SettingsService {
         existingCategory.setName(category.getName());
         existingCategory.setStandardRateHours(category.getStandardRateHours());
         existingCategory.setWorkStartTime(category.getWorkStartTime());
+        if (category.getWeeklyOffDays() != null) existingCategory.setWeeklyOffDays(category.getWeeklyOffDays());
+        existingCategory.setAbsenceCutoffTime(category.getAbsenceCutoffTime());
+        existingCategory.setOvernightShift(Boolean.TRUE.equals(category.getOvernightShift()));
         existingCategory.setUseNonTaxableAllowances(category.getUseNonTaxableAllowances());
         existingCategory.setExcludeWeekendsFromLeave(category.getExcludeWeekendsFromLeave());
 
@@ -107,6 +113,8 @@ public class SettingsService {
 
         existingCategory.setSkipAutoAbsent(category.getSkipAutoAbsent());
         existingCategory.setApplyWithholdingTax(category.getApplyWithholdingTax());
+        existingCategory.setWeekendAttendanceAsOvertime(
+                Boolean.TRUE.equals(category.getWeekendAttendanceAsOvertime()));
 
         // ========== NEW: Save approval routing fields ==========
         existingCategory.setSupervisorEmails(category.getSupervisorEmails());
@@ -281,7 +289,9 @@ public class SettingsService {
         if (holidayRepository.existsByDate(holiday.getDate())) {
             throw new RuntimeException("Holiday already exists for date: " + holiday.getDate());
         }
-        return holidayRepository.save(holiday);
+        Holiday saved = holidayRepository.save(holiday);
+        holidayAttendanceService.holidaySaved(saved);
+        return saved;
     }
 
     public Holiday updateHoliday(Long id, Holiday holiday) {
@@ -293,7 +303,9 @@ public class SettingsService {
         existingHoliday.setRecurring(holiday.isRecurring());
         existingHoliday.setPayMultiplier(holiday.getPayMultiplier());
 
-        return holidayRepository.save(existingHoliday);
+        Holiday saved = holidayRepository.save(existingHoliday);
+        holidayAttendanceService.holidaySaved(saved);
+        return saved;
     }
 
     public void deleteHoliday(Long id) {
@@ -412,6 +424,18 @@ public class SettingsService {
         }
         if (settingsDTO.getBillingReminderEnabled() != null) {
             existingSettings.setBillingReminderEnabled(settingsDTO.getBillingReminderEnabled());
+        }
+        if (settingsDTO.getAccountRequestRecipients() != null) {
+            existingSettings.setAccountRequestRecipients(settingsDTO.getAccountRequestRecipients());
+        }
+        if (settingsDTO.getSupportRequestRecipients() != null) {
+            existingSettings.setSupportRequestRecipients(settingsDTO.getSupportRequestRecipients());
+        }
+        if (settingsDTO.getPettyCashThreshold() != null && settingsDTO.getPettyCashThreshold().signum() >= 0) {
+            existingSettings.setPettyCashThreshold(settingsDTO.getPettyCashThreshold());
+        }
+        if (settingsDTO.getPettyCashRequestRecipients() != null) {
+            existingSettings.setPettyCashRequestRecipients(settingsDTO.getPettyCashRequestRecipients());
         }
 
         if (settingsDTO.getInventoryRequestRecipients() != null) {
@@ -706,7 +730,10 @@ public class SettingsService {
 
         // Update auto-absent specific fields
         existing.setAutoAbsentEnabled(settings.isAutoAbsentEnabled());
-        existing.setAutoAbsentRunTime(settings.getAutoAbsentRunTime());
+        if (settings.isAutoAbsentEnabled() && settings.getAutoAbsentCutoffTime() == null) {
+            throw new IllegalArgumentException("Choose an absence cutoff time before enabling auto-absence.");
+        }
+        existing.setAutoAbsentCutoffTime(settings.getAutoAbsentCutoffTime());
         existing.setAutoAbsentSkipCategories(settings.getAutoAbsentSkipCategories());
 
         return scheduleRepository.save(existing);
@@ -803,6 +830,10 @@ public class SettingsService {
         dto.setBillingReminderEmails(settings.getBillingReminderEmails());
         dto.setBillingReminderEnabled(settings.getBillingReminderEnabled());
         dto.setLateArrivalTime(settings.getLateArrivalTime());
+        dto.setAccountRequestRecipients(settings.getAccountRequestRecipients());
+        dto.setSupportRequestRecipients(settings.getSupportRequestRecipients());
+        dto.setPettyCashThreshold(settings.getPettyCashThreshold());
+        dto.setPettyCashRequestRecipients(settings.getPettyCashRequestRecipients());
 
         dto.setInventoryRequestRecipients(
                 settings.getInventoryRequestRecipients()

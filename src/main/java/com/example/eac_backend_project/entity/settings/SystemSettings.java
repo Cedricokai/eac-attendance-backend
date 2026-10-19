@@ -3,17 +3,22 @@ package com.example.eac_backend_project.entity.settings;
 import jakarta.persistence.*;
 import lombok.Data;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.math.BigDecimal;
 
 @Entity
 @Data
 @Table(name = "system_settings")
 public class SystemSettings {
+    private java.math.BigDecimal pettyCashPurchaseLimit;
+    public java.math.BigDecimal getPettyCashPurchaseLimit() { return pettyCashPurchaseLimit; }
+    public void setPettyCashPurchaseLimit(java.math.BigDecimal value) { pettyCashPurchaseLimit = value; }
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Double defaultOvertimeMultiplier = 1.5;
+    private Double defaultOvertimeMultiplier;
     private Double sundayOvertimeMultiplier = 2.0;
     private Double holidayOvertimeMultiplier = 2.5;
     private Boolean enableTimeAndHalfAfter8Hours = true;
@@ -79,6 +84,18 @@ public class SystemSettings {
 
     @Column(columnDefinition = "TEXT")
     private String leaveApprovalRecipients;
+
+    @Column(name = "account_request_recipients", columnDefinition = "TEXT")
+    private String accountRequestRecipients;
+
+    @Column(name = "support_request_recipients", columnDefinition = "TEXT")
+    private String supportRequestRecipients;
+
+    @Column(name = "petty_cash_threshold", precision = 19, scale = 2)
+    private BigDecimal pettyCashThreshold = BigDecimal.ZERO;
+
+    @Column(name = "petty_cash_request_recipients", columnDefinition = "TEXT")
+    private String pettyCashRequestRecipients;
 
     private Boolean emailNotificationsEnabled;
     private Boolean smsNotificationsEnabled;
@@ -255,6 +272,14 @@ public class SystemSettings {
     public void setAttendanceValidationRecipients(String attendanceValidationRecipients) { this.attendanceValidationRecipients = attendanceValidationRecipients; }
     public String getLeaveApprovalRecipients() { return leaveApprovalRecipients; }
     public void setLeaveApprovalRecipients(String leaveApprovalRecipients) { this.leaveApprovalRecipients = leaveApprovalRecipients; }
+    public String getAccountRequestRecipients() { return accountRequestRecipients; }
+    public void setAccountRequestRecipients(String accountRequestRecipients) { this.accountRequestRecipients = accountRequestRecipients; }
+    public String getSupportRequestRecipients() { return supportRequestRecipients; }
+    public void setSupportRequestRecipients(String supportRequestRecipients) { this.supportRequestRecipients = supportRequestRecipients; }
+    public BigDecimal getPettyCashThreshold() { return pettyCashThreshold; }
+    public void setPettyCashThreshold(BigDecimal pettyCashThreshold) { this.pettyCashThreshold = pettyCashThreshold; }
+    public String getPettyCashRequestRecipients() { return pettyCashRequestRecipients; }
+    public void setPettyCashRequestRecipients(String pettyCashRequestRecipients) { this.pettyCashRequestRecipients = pettyCashRequestRecipients; }
     public Boolean getEmailNotificationsEnabled() { return emailNotificationsEnabled; }
     public void setEmailNotificationsEnabled(Boolean emailNotificationsEnabled) { this.emailNotificationsEnabled = emailNotificationsEnabled; }
     public Boolean getSmsNotificationsEnabled() { return smsNotificationsEnabled; }

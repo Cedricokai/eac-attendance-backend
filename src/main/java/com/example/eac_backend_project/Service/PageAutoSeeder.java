@@ -80,7 +80,7 @@ public class PageAutoSeeder {
 
                 // Cost Center & Reports
                 new PageDefinition("Cost Center Management", "/CostCenterManagement", "Cost center management", "PieChart", false, 80, "ROLE_ADMIN", "ROLE_PLANNER"),
-                new PageDefinition("Jobs Management", "/JobsManagement", "Jobs management", "Briefcase", false, 81, "ROLE_PLANNER", "ROLE_ADMIN"),
+                new PageDefinition("Project Management", "/JobsManagement", "Project management", "Briefcase", false, 81, "ROLE_PLANNER", "ROLE_ADMIN"),
                 new PageDefinition("Inventory Reports", "/inventory-reports", "Inventory reports dashboard", "BarChart", false, 82, "ROLE_INVENTORY", "ROLE_ADMIN"),
                 new PageDefinition("General Reports", "/reports", "System reports", "FileBarChart", false, 83, "ROLE_SUPERVISOR", "ROLE_HR", "ROLE_ADMIN"),
 
@@ -101,6 +101,15 @@ public class PageAutoSeeder {
                 new PageDefinition("History", "/history", "System history log", "History", false, 104, "ROLE_ADMIN"),
                 new PageDefinition("Search", "/search", "Global search", "Search", false, 105, "ROLE_ADMIN", "ROLE_HR", "ROLE_SUPERVISOR")
         );
+
+        // Update the existing navigation label without changing permissions or links.
+        pageRepository.findByPath("/JobsManagement").ifPresent(page -> {
+            if ("Jobs Management".equals(page.getName()) || "JobsManagement".equals(page.getName())) {
+                page.setName("Project Management");
+                page.setDescription("Project management");
+                pageRepository.save(page);
+            }
+        });
 
         for (PageDefinition definition : pageDefinitions) {
             // Check if page already exists

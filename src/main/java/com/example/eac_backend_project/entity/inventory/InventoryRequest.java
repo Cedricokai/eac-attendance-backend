@@ -14,6 +14,12 @@ import java.util.List;
 @Entity
 @Table(name = "inventory_request")
 public class InventoryRequest {
+    private Long requesterUserId;
+    private String requesterEmail;
+    private String requesterName;
+    @Column(nullable=false, columnDefinition="boolean default false")
+    private boolean financeFulfilment;
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -422,5 +428,6 @@ public class InventoryRequest {
     }
 
     public void setIssuedDate(LocalDateTime now) {
+        this.issueDate = now;
     }
 }

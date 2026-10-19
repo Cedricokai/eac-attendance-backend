@@ -11,6 +11,10 @@ import java.util.List;
 @Repository
 public interface HolidayRepository extends JpaRepository<Holiday, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT h FROM Holiday h WHERE h.date = :date OR (h.recurring = true AND MONTH(h.date) = MONTH(:date) AND DAY(h.date) = DAY(:date)) ORDER BY h.id")
+    List<Holiday> lockHolidaysOn(@org.springframework.data.repository.query.Param("date") LocalDate date);
+
     List<Holiday> findAllByOrderByDateAsc();
 
     @Query("SELECT h FROM Holiday h WHERE YEAR(h.date) = :year ORDER BY h.date")

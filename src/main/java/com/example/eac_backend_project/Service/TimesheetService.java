@@ -838,9 +838,12 @@ public class TimesheetService {
         double defaultNH = codeSettings != null && codeSettings.getDefaultNH() != null ? codeSettings.getDefaultNH() : standardHours;
 
         if ("P".equals(code) || "WP".equals(code)) {
-            double effectiveOt = allowOT ? rawOt * defaultOtMult : 0;
-            t.setOvertimeHours(effectiveOt);
-            t.setTotalHours(standardHours + effectiveOt);
+            // Persist raw OT only. The overtime multiplier belongs to the
+            // overtime rate/pay calculation. Saving adjusted hours here made
+            // repeated saves compound the multiplier (4 -> 6 -> 9...).
+            double persistedRawOt = allowOT ? rawOt : 0;
+            t.setOvertimeHours(persistedRawOt);
+            t.setTotalHours(t.getRegularHours() + persistedRawOt);
             return;
         }
 
@@ -973,17 +976,22 @@ public class TimesheetService {
      * Generate Excel invoice for a job within date range.
      * Format:
      *   Employee Name | Practice Title | Rate (₵/hr) | Date1 | Date2 | ... | Total Hours | Amount (₵)
-     * Two rows per employee: NH row (Practice Title = "Normal Work"), OT row (Practice Title = "Overtime").
-     * Uses:
-     *   - Job‑specific normal rate (JobEmployeeRate.normalHourRate) if available, else employee default.
-     *   - Job‑specific overtime rate (JobEmployeeRate.overtimeRate) if available, else:
-     *        job’s overtimeMultiplier * normal rate (if job multiplier is set),
-     *        else system default multiplier * normal rate.
+     * Two billing rows per employee (Billing NH and Billing OT). The job's
+     * fixed Billing Hours are split at the Standard Hours threshold. Raw
+     * Timesheet NH/OT are operational attendance values and are not used as
+     * invoice quantities.
      */
     public byte[] generateJobInvoiceExcel(Long jobId, LocalDate startDate, LocalDate endDate) throws Exception {
         // Fetch job and its overtime multiplier
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new RuntimeException("Job not found: " + jobId));
+        double dailyBillingHours = job.getBillingHours() != null
+                ? job.getBillingHours()
+                : (job.getStandardWorkHours() != null ? job.getStandardWorkHours().doubleValue() : 8.0);
+        double dailyStandardHours = job.getStandardWorkHours() != null
+                ? job.getStandardWorkHours().doubleValue() : 8.0;
+        double dailyBillingNh = Math.min(dailyBillingHours, dailyStandardHours);
+        double dailyBillingOtRaw = Math.max(dailyBillingHours - dailyStandardHours, 0.0);
 
         // Fetch timesheets for this job within date range that have hours
         List<Timesheet> timesheets = getTimesheetsByJobAndDateRangeWithHours(jobId, startDate, endDate);
@@ -1071,26 +1079,29 @@ public class TimesheetService {
                         : (employee.getHourlyRate() != null ? employee.getHourlyRate() : 0.0);
             }
 
+            Double jobMult = job.getOvertimeMultiplier();
+            Double sysMult = settingsService.getSystemSettings().getDefaultOvertimeMultiplier();
+            double overtimeMultiplier = jobMult != null ? jobMult : (sysMult != null ? sysMult : 1.5);
+            boolean multiplierOnHours = Boolean.TRUE.equals(job.getApplyOvertimeMultiplierToHours());
+            double invoiceOtHoursPerDay = multiplierOnHours
+                    ? dailyBillingOtRaw * overtimeMultiplier : dailyBillingOtRaw;
             double overtimeRate;
-            if (jobRate != null && jobRate.getOvertimeRate() != null) {
-                // Employee‑specific overtime rate takes highest priority
+            if (multiplierOnHours) {
+                overtimeRate = normalRate;
+            } else if (jobRate != null && jobRate.getOvertimeRate() != null) {
                 overtimeRate = jobRate.getOvertimeRate();
             } else {
-                // Use job's overtime multiplier if set, otherwise system default
-                Double jobMult = job.getOvertimeMultiplier();
-                Double sysMult = settingsService.getSystemSettings().getDefaultOvertimeMultiplier();
-                double mult = (jobMult != null) ? jobMult : (sysMult != null ? sysMult : 1.5);
-                overtimeRate = normalRate * mult;
+                overtimeRate = normalRate * overtimeMultiplier;
             }
 
-            // ====== NH ROW (Normal Work) ======
+            // ====== BILLING ROW ======
             Row nhRow = sheet.createRow(rowNum++);
             col = 0;
 
             // Employee Name
             nhRow.createCell(col++).setCellValue(employee.getFirstName() + " " + employee.getLastName());
             // Practice Title
-            nhRow.createCell(col++).setCellValue("Normal Work");
+            nhRow.createCell(col++).setCellValue("Billing NH");
             // Rate
             nhRow.createCell(col++).setCellValue(normalRate);
 
@@ -1098,7 +1109,7 @@ public class TimesheetService {
             for (LocalDate date : datesInRange) {
                 String key = employeeId + "_" + date.toString();
                 Timesheet ts = timesheetMap.get(key);
-                double nh = (ts != null) ? ts.getRegularHours() : 0;
+                double nh = (ts != null) ? dailyBillingNh : 0;
                 nhRow.createCell(col++).setCellValue(nh);
                 totalNh += nh;
             }
@@ -1108,49 +1119,41 @@ public class TimesheetService {
             totalNhCell.setCellValue(totalNh);
             totalNhCell.setCellStyle(boldDataStyle);
 
-            // Amount = Total NH × Normal Rate
+            // Amount = Total Billing Hours × Normal Rate
             double nhAmount = totalNh * normalRate;
             Cell amountNhCell = nhRow.createCell(col++);
             amountNhCell.setCellValue(nhAmount);
             amountNhCell.setCellStyle(currencyStyle);
 
-            // ====== OT ROW (Overtime) ======
+            // ====== BILLING OT ROW ======
             Row otRow = sheet.createRow(rowNum++);
             col = 0;
-
-            // Employee Name – blank
             otRow.createCell(col++).setCellValue("");
-            // Practice Title
-            otRow.createCell(col++).setCellValue("Overtime");
-            // Rate – Overtime Rate
+            otRow.createCell(col++).setCellValue("Billing OT");
             otRow.createCell(col++).setCellValue(overtimeRate);
 
             double totalOt = 0;
             for (LocalDate date : datesInRange) {
-                String key = employeeId + "_" + date.toString();
+                String key = employeeId + "_" + date;
                 Timesheet ts = timesheetMap.get(key);
-                double ot = (ts != null) ? ts.getOvertimeHours() : 0;
+                double ot = ts != null ? invoiceOtHoursPerDay : 0;
                 otRow.createCell(col++).setCellValue(ot);
                 totalOt += ot;
             }
-
-            // Total Hours
             Cell totalOtCell = otRow.createCell(col++);
             totalOtCell.setCellValue(totalOt);
             totalOtCell.setCellStyle(boldDataStyle);
-
-            // Amount = Total OT × Overtime Rate
-            double otAmount = totalOt * overtimeRate;
-            Cell amountOtCell = otRow.createCell(col++);
-            amountOtCell.setCellValue(otAmount);
+            Cell amountOtCell = otRow.createCell(col);
+            amountOtCell.setCellValue(totalOt * overtimeRate);
             amountOtCell.setCellStyle(currencyStyle);
+
         }
 
         // ========== LEGEND ROW ==========
         rowNum++;
         Row legendRow = sheet.createRow(rowNum);
         Cell legendCell = legendRow.createCell(0);
-        legendCell.setCellValue("Legend: NH = Normal Work, OT = Overtime. Amount = Total Hours × Rate.");
+        legendCell.setCellValue("Billing NH and Billing OT are split from the job's daily Billing Hours using Standard Hours. Raw Timesheet NH/OT are not used for invoice quantities.");
         legendCell.setCellStyle(dataStyle);
         sheet.addMergedRegion(new CellRangeAddress(rowNum, rowNum, 0, 2 + datesInRange.size() + 1)); // +1 for Amount
 

@@ -17,9 +17,13 @@ public interface LunchAssignmentRepository extends JpaRepository<LunchAssignment
     // ✅ Find active assignment for a specific employee on a specific date
     @Query("SELECT la FROM LunchAssignment la WHERE la.employee.id = :employeeId " +
             "AND la.startDate <= :date AND la.endDate >= :date " +
-            "AND la.status = 'ACTIVE' AND la.deleted = false")
-    Optional<LunchAssignment> findActiveAssignmentByEmployeeAndDate(@Param("employeeId") Long employeeId,
-                                                                    @Param("date") LocalDate date);
+            "AND la.status = 'ACTIVE' AND la.deleted = false ORDER BY la.startDate DESC, la.id DESC")
+    List<LunchAssignment> findActiveEmployeeAssignments(@Param("employeeId") Long employeeId,
+                                                       @Param("date") LocalDate date);
+
+    default Optional<LunchAssignment> findActiveAssignmentByEmployeeAndDate(Long employeeId, LocalDate date) {
+        return findActiveEmployeeAssignments(employeeId, date).stream().findFirst();
+    }
 
     // ✅ Find all active assignments for a specific date
     @Query("SELECT la FROM LunchAssignment la WHERE la.startDate <= :date " +

@@ -10,6 +10,7 @@ import com.example.eac_backend_project.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -25,9 +26,17 @@ public class PayrollService {
     private static final Logger logger = LoggerFactory.getLogger(PayrollService.class);
 
     private final PayrollPeriodRepository payrollPeriodRepository;
+    @Autowired
+    private JobRepository projectPayrollJobs;
+    @Autowired
+    private PayrollWorkScopeService payrollWorkScopeService;
     private final PayrollRecordRepository payrollRecordRepository;
     private final OvertimeRepository overtimeRepository;
     private final AttendanceRepository attendanceRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private JobEmployeeRateRepository jobEmployeeRateRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private PayrollProjectSnapshotService payrollProjectSnapshotService;
     private final EmployeeRepository employeeRepository;
     private final LeaveRepository leaveRepository;
     private final PendingCreditRepository pendingCreditRepository;
@@ -119,6 +128,7 @@ public class PayrollService {
                 .map(row -> ((Number) row[0]).longValue())
                 .distinct()
                 .collect(Collectors.toList());
+        if(period.isProjectPayroll()) employeeIds = new ArrayList<>(payrollWorkScopeService.prepare(period).workDates.keySet());
 
         if (employeeIds.isEmpty()) {
             return Collections.emptyList();
@@ -138,6 +148,34 @@ public class PayrollService {
     @Transactional
     public Map<String, Object> generatePayrollWithSelectedCredits(GeneratePayrollWithCreditsRequest request) {
         Long periodId = request.getPeriodId();
+        payrollPeriodRepository.lockForPayrollGeneration();
+        PayrollPeriod scopePeriod = payrollPeriodRepository.findById(periodId).orElseThrow(() -> new IllegalArgumentException("Payroll period not found"));
+        if (scopePeriod.isProjectPayroll()) {
+            var eligible = payrollWorkScopeService.prepare(scopePeriod).workDates.keySet();
+            if (request.getEmployeeId()!=null && !eligible.contains(request.getEmployeeId())) throw new IllegalArgumentException("Selected employee has no unpaid approved, synced work for this project");
+            if (request.getSelectedCreditIds()!=null && pendingCreditRepository.findAllById(request.getSelectedCreditIds()).stream().anyMatch(c->c.getEmployee()==null || !eligible.contains(c.getEmployee().getId())))
+                throw new IllegalArgumentException("Selected credits must belong to eligible project employees");
+            if(request.getDirectCreditAmounts()!=null && !eligible.containsAll(request.getDirectCreditAmounts().keySet())) throw new IllegalArgumentException("Direct credits must belong to eligible project employees");
+        }
+        if (request.getSelectedCreditIds() != null && request.getExcludedEmployeeIds() != null) {
+            boolean excludedCredit = pendingCreditRepository.findAllById(request.getSelectedCreditIds()).stream()
+                    .anyMatch(credit -> credit.getEmployee() != null && request.getExcludedEmployeeIds().contains(credit.getEmployee().getId()));
+            if (excludedCredit) throw new IllegalArgumentException("Cannot apply credits for excluded employees");
+        }
+        List<PayrollRecord> scopedRecords = payrollRecordRepository.findByPeriodId(periodId).stream()
+                .filter(row -> request.getEmployeeId() == null || (row.getEmployee() != null
+                        && request.getEmployeeId().equals(row.getEmployee().getId())))
+                .collect(Collectors.toList());
+        PayrollRateSelection.validate(request.getRateChoice(), scopedRecords);
+        if (request.getEmployeeId() != null) {
+            Employee selected = employeeRepository.findByIdAndActiveTrue(request.getEmployeeId())
+                    .orElseThrow(() -> new IllegalArgumentException("Selected employee is not active or does not exist"));
+            PayrollPeriod selectedPeriod = payrollPeriodRepository.findById(periodId)
+                    .orElseThrow(() -> new IllegalArgumentException("Payroll period not found"));
+            if (!selectedPeriod.isProjectPayroll() && (selected.getCategory() == null || !Objects.equals(selected.getCategory().getName(), selectedPeriod.getCategory()))) {
+                throw new IllegalArgumentException("Selected employee does not belong to this period's category");
+            }
+        }
         List<Long> selectedCreditIds = request.getSelectedCreditIds();
 
         logger.info("Generating payroll for period {} with {} selected credits", periodId,
@@ -147,6 +185,14 @@ public class PayrollService {
         String appliedCreditIdsStr = null;
 
         if (selectedCreditIds != null && !selectedCreditIds.isEmpty()) {
+            if (request.getEmployeeId() != null) {
+                List<PendingCredit> selected = pendingCreditRepository.findAllById(selectedCreditIds);
+                if (selected.size() != new HashSet<>(selectedCreditIds).size() || selected.stream().anyMatch(c ->
+                        c.getEmployee() == null || !request.getEmployeeId().equals(c.getEmployee().getId())
+                        || !"PENDING".equals(c.getStatus()))) {
+                    throw new IllegalArgumentException("Credits must be pending and belong to the selected employee");
+                }
+            }
             int updated = pendingCreditRepository.markCreditsAsApplied(selectedCreditIds, periodId);
             logger.info("Marked {} credits as applied to period {}", updated, periodId);
 
@@ -168,18 +214,34 @@ public class PayrollService {
             }
         }
 
+        if (request.getEmployeeId() != null) {
+            Long target = request.getEmployeeId();
+            appliedCreditAmounts.keySet().removeIf(id -> !target.equals(id));
+            PayrollRecord previous = scopedRecords.stream().findFirst().orElse(null);
+            if (previous != null) {
+                if (request.getDirectCreditAmounts() == null || !request.getDirectCreditAmounts().containsKey(target)) {
+                    appliedCreditAmounts.merge(target, previous.getCreditAmount() == null ? 0.0 : previous.getCreditAmount(), Double::sum);
+                }
+                if (previous.getAppliedCreditIds() != null && !previous.getAppliedCreditIds().isBlank()) {
+                    appliedCreditIdsStr = previous.getAppliedCreditIds() + (appliedCreditIdsStr == null ? "" : "," + appliedCreditIdsStr);
+                }
+            }
+        }
         return generatePayrollWithCredits(periodId, appliedCreditAmounts, appliedCreditIdsStr, request);
     }
+
+
 
     @Transactional
     public Map<String, Object> generatePayrollWithCredits(Long periodId, Map<Long, Double> creditAmounts,
                                                           String appliedCreditIds, GeneratePayrollWithCreditsRequest request) {
+        payrollPeriodRepository.lockForPayrollGeneration();
         SystemSettings sys = settingsService.getSystemSettings();
         Map<Long, Double> allCreditAmounts = new HashMap<>();
         if (creditAmounts != null) {
             allCreditAmounts.putAll(creditAmounts);
         }
-        if (request != null && request.getDirectCreditAmounts() != null) {
+        if (request != null && request.getEmployeeId() == null && request.getDirectCreditAmounts() != null) {
             allCreditAmounts.putAll(request.getDirectCreditAmounts());
             logger.info("Added direct credits from request in generatePayrollWithCredits: {}", request.getDirectCreditAmounts().size());
         }
@@ -195,13 +257,36 @@ public class PayrollService {
         PayrollPeriod period = payrollPeriodRepository.findById(periodId)
                 .orElseThrow(() -> new IllegalArgumentException("Payroll period not found for id: " + periodId));
 
+        payrollPeriodRepository.lockForPayrollGeneration();
+        PayrollWorkScopeService.Scope workScope = payrollWorkScopeService == null ? null : payrollWorkScopeService.prepare(period);
+        if(period.isProjectPayroll() && workScope==null) throw new IllegalStateException("Project payroll work selection unavailable");
         String periodCategory = period.getCategory();
         logger.info("Period category: {}", periodCategory);
 
         // ==================== CRITICAL FIX: Check if loan deductions already processed ====================
-        boolean loanDeductionsAlreadyProcessed = loanDeductionService.hasLoanDeductionsForPeriod(periodId);
+        boolean loanDeductionsAlreadyProcessed = loanDeductionService.hasLoanDeductionsForEmployee(periodId, request.getEmployeeId());
 
-        List<PayrollRecord> existingRecords = payrollRecordRepository.findByPeriodId(periodId);
+        List<PayrollRecord> existingRecords = payrollRecordRepository.findByPeriodId(periodId).stream()
+                .filter(row -> request.getEmployeeId() == null || (row.getEmployee() != null
+                        && request.getEmployeeId().equals(row.getEmployee().getId())))
+                .collect(Collectors.toList());
+
+        Set<Long> excludedIds = request.getExcludedEmployeeIds() == null ? Collections.emptySet() : new HashSet<>(request.getExcludedEmployeeIds());
+        if (request.getEmployeeId() != null && !excludedIds.isEmpty()) throw new IllegalArgumentException("Choose either an employee or exclusions");
+        List<PayrollRecord> excludedRecords = existingRecords.stream()
+                .filter(row -> row.getEmployee() != null && excludedIds.contains(row.getEmployee().getId())).collect(Collectors.toList());
+        if (excludedRecords.stream().anyMatch(row -> "Processed".equals(row.getStatus())
+                || (row.getCreditAmount() != null && row.getCreditAmount() != 0)
+                || loanDeductionService.hasLoanDeductionsForEmployee(periodId, row.getEmployee().getId()))) {
+            throw new IllegalStateException("Clear existing payroll records and reverse credits/loan deductions before excluding these employees");
+        }
+        payrollRecordRepository.deleteAll(excludedRecords);
+        existingRecords.removeAll(excludedRecords);
+        allCreditAmounts.keySet().removeAll(excludedIds);
+        PayrollRateSelection.validate(request.getRateChoice(), existingRecords);
+        Map<Long, PayrollRecord> previousRates = existingRecords.stream()
+                .filter(row -> row.getEmployee() != null)
+                .collect(Collectors.toMap(row -> row.getEmployee().getId(), row -> row, (first, second) -> first));
 
         // If loan deductions were already processed, we need to PRESERVE them
         Map<Long, Double> existingLoanDeductions = new HashMap<>();
@@ -245,18 +330,28 @@ public class PayrollService {
             logger.info("Loan deductions already processed - will preserve deduction values when recreating records");
             // Don't delete if we're just updating - we'll update existing records instead
             // OR we'll recreate them with preserved values
-        } else {
+        } else if (request.getEmployeeId() == null) {
             payrollRecordRepository.deleteByPeriodId(periodId);
         }
 
-        List<Object[]> attendanceSummaries = attendanceRepository.summarizeAllPresentAttendanceBetweenDatesForCategory(
-                period.getStartDate(), period.getEndDate(), periodCategory);
+        List<Object[]> attendanceSummaries = workScope == null ? attendanceRepository.summarizeAllPresentAttendanceBetweenDatesForCategory(
+                period.getStartDate(), period.getEndDate(), periodCategory) : workScope.normalSummary();
 
-        List<Object[]> approvedOvertimeSummaries = overtimeRepository.summarizeApprovedOvertimeBetweenDatesForCategory(
-                period.getStartDate(), period.getEndDate(), periodCategory);
+        List<Object[]> approvedOvertimeSummaries = workScope == null ? overtimeRepository.summarizeApprovedOvertimeBetweenDatesForCategory(
+                period.getStartDate(), period.getEndDate(), periodCategory) : workScope.overtimeSummary();
 
         Map<Long, Double> approvedOvertimeHoursMap = new HashMap<>();
         Map<Long, Double> preCalculatedOvertimePayMap = new HashMap<>();
+        Map<Long, Map<LocalDate, Double>> approvedOvertimeByEmployeeAndDate = new HashMap<>();
+
+        (workScope == null ? overtimeRepository.findApprovedOvertimeForPayrollPeriod(period.getStartDate(), period.getEndDate()) : workScope.approvedOvertime)
+                .forEach(overtime -> {
+                    if (overtime.getEmployee() != null && overtime.getDate() != null && overtime.getOvertimeHours() != null) {
+                        approvedOvertimeByEmployeeAndDate
+                                .computeIfAbsent(overtime.getEmployee().getId(), ignored -> new HashMap<>())
+                                .merge(overtime.getDate(), overtime.getOvertimeHours(), Double::sum);
+                    }
+                });
 
         if (approvedOvertimeSummaries != null) {
             for (Object[] row : approvedOvertimeSummaries) {
@@ -279,13 +374,13 @@ public class PayrollService {
             }
         }
 
-        List<Leave> approvedLeaves = leaveRepository.findApprovedLeavesInPeriodForCategory(
+        List<Leave> approvedLeaves = period.isProjectPayroll() ? Collections.emptyList() : leaveRepository.findApprovedLeavesInPeriodForCategory(
                 period.getStartDate(), period.getEndDate(), periodCategory);
 
         List<Object[]> detailedAttendance = attendanceRepository.findValidAttendanceForPayroll(
                 period.getStartDate(), period.getEndDate());
 
-        List<Object[]> leaveAttendanceRecords = attendanceRepository.findAttendanceWithLeaveStatusForCategory(
+        List<Object[]> leaveAttendanceRecords = period.isProjectPayroll() ? Collections.emptyList() : attendanceRepository.findAttendanceWithLeaveStatusForCategory(
                 period.getStartDate(), period.getEndDate(), periodCategory);
 
         Set<Long> employeeIds = new HashSet<>();
@@ -334,6 +429,11 @@ public class PayrollService {
                             .ifPresent(employee -> employeeIds.add(empId)));
         }
 
+        if (period.isProjectPayroll()) employeeIds.retainAll(workScope.workDates.keySet());
+        if (request.getEmployeeId() != null) {
+            employeeIds.retainAll(Collections.singleton(request.getEmployeeId()));
+        }
+        employeeIds.removeAll(excludedIds);
         if (employeeIds.isEmpty()) {
             throw new IllegalStateException("No active employees with attendance, approved overtime, leave, or temporary allowances found for the period in category: " + periodCategory);
         }
@@ -344,18 +444,20 @@ public class PayrollService {
                 .filter(r -> r.length >= 3 && r[0] != null)
                 .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> r, (a, b) -> a));
 
-        Map<Long, Double> leaveHoursMap = calculateLeaveHoursPerEmployee(approvedLeaves, period);
-
-        Map<Long, Integer> leaveDaysFromAttendance = calculateLeaveDaysFromAttendance(leaveAttendanceRecords, period);
-
+        Map<Long, Set<LocalDate>> leaveDates = PayrollLeaveDays.collect(approvedLeaves, leaveAttendanceRecords, period);
+        if(workScope!=null) leaveDates.forEach((employee,dates)->dates.removeIf(date->workScope.reserved(employee,date)));
         Map<Long, Integer> finalLeaveDaysMap = new HashMap<>();
+        leaveDates.forEach((employeeId, dates) -> finalLeaveDaysMap.put(employeeId, dates.size()));
 
-        leaveDaysFromAttendance.forEach((employeeId, days) -> {
-            finalLeaveDaysMap.put(employeeId, days);
-        });
-
-        Map<Long, List<LocalDate>> employeeAttendanceDates = buildEmployeeAttendanceDates(period);
-        Map<Long, Map<LocalDate, Double>> employeeDailyHours = buildEmployeeDailyHours(period);
+        Map<Long, List<LocalDate>> employeeAttendanceDates = workScope == null ? buildEmployeeAttendanceDates(period) : workScope.dates;
+        Map<Long, Map<LocalDate, Double>> employeeDailyHours = workScope == null ? buildEmployeeDailyHours(period) : workScope.daily;
+        // Leave attendance may carry standard hours. Pay these once as leave,
+        // without counting them as worked days or automatic weekend overtime.
+        PayrollLeaveDays.excludeFromWorkedHours(leaveDates, employeeAttendanceDates, employeeDailyHours);
+        Map<Long, Set<LocalDate>> unpaidAttendanceDates = PayrollLeaveDays.collectUnpaid(approvedLeaves, period);
+        Map<Long, Set<LocalDate>> recordedLeaveDates = PayrollLeaveDays.collect(null, leaveAttendanceRecords, period);
+        unpaidAttendanceDates.forEach((id, dates) -> dates.retainAll(recordedLeaveDates.getOrDefault(id, Collections.emptySet())));
+        PayrollLeaveDays.excludeFromWorkedHours(unpaidAttendanceDates, employeeAttendanceDates, employeeDailyHours);
 
         int processedCount = 0;
         List<PayrollRecord> recordsToSave = new ArrayList<>();
@@ -368,83 +470,79 @@ public class PayrollService {
                 List<LocalDate> attendanceDates = employeeAttendanceDates.getOrDefault(employeeId, new ArrayList<>());
                 Map<LocalDate, Double> dailyHours = employeeDailyHours.getOrDefault(employeeId, new HashMap<>());
 
-                MultiplierAdjustedHours adjustedHours = calculateMultiplierAdjustedHours(
-                        attendanceDates, dailyHours, settings, period);
+                double standardHoursPerDay = period.isProjectPayroll()
+                        ? projectPayrollJobs.findById(period.getProjectId()).map(j->j.getStandardWorkHours()==null?getStandardHoursPerDay(employee):j.getStandardWorkHours().doubleValue()).orElseThrow(()->new IllegalStateException("Project not found"))
+                        : getStandardHoursPerDay(employee);
 
-                double standardHoursPerDay = getStandardHoursPerDay(employee);
+                MultiplierAdjustedHours adjustedHours = calculateMultiplierAdjustedHours(
+                        attendanceDates, dailyHours, settings, period, standardHoursPerDay);
+
+                boolean weekendAttendanceAsOvertime = employee.getCategory() != null
+                        && Boolean.TRUE.equals(employee.getCategory().getWeekendAttendanceAsOvertime());
+                double rawAutomaticWeekendOvertimeHours = 0.0;
+                double automaticWeekendOvertimeHours = 0.0;
+                if (weekendAttendanceAsOvertime) {
+                    Map<LocalDate, Double> approvedByDate = approvedOvertimeByEmployeeAndDate
+                            .getOrDefault(employeeId, Collections.emptyMap());
+                    for (Map.Entry<LocalDate, Double> entry : dailyHours.entrySet()) {
+                        Double recordedHours = entry.getValue();
+                        if (recordedHours != null && recordedHours > 0
+                                && payrollCalculator.isWeekend(entry.getKey(), settings.getWeekendDays())
+                                && !payrollCalculator.isHoliday(entry.getKey(), settings.getHolidays())) {
+                            rawAutomaticWeekendOvertimeHours += Math.max(0.0,
+                                    recordedHours - approvedByDate.getOrDefault(entry.getKey(), 0.0));
+                        }
+                    }
+                    double weekendOvertimeMultiplier = sys.getDefaultOvertimeMultiplier() != null
+                            ? sys.getDefaultOvertimeMultiplier()
+                            : 1.0;
+                    automaticWeekendOvertimeHours = rawAutomaticWeekendOvertimeHours
+                            * Math.max(0.0, weekendOvertimeMultiplier);
+
+                    double regularWeekendHours = adjustedHours.getWeekendHours();
+                    double weekendRate = settings.getWeekendRate() != null ? settings.getWeekendRate() : 1.0;
+                    double weekendMultiplierBonus = regularWeekendHours * Math.max(0.0, weekendRate - 1.0);
+                    adjustedHours = new MultiplierAdjustedHours(
+                            Math.max(0.0, adjustedHours.getTotalHours() - regularWeekendHours),
+                            Math.max(0, adjustedHours.getWorkingDays() - adjustedHours.getWeekendDays()),
+                            adjustedHours.getHolidayHours(),
+                            automaticWeekendOvertimeHours,
+                            adjustedHours.getHolidayDays(),
+                            adjustedHours.getWeekendDays(),
+                            Math.max(0.0, adjustedHours.getMultiplierBonus() - weekendMultiplierBonus)
+                    );
+                    logger.info("Employee {} category {}: converted {} uncovered weekend hours to {} overtime hours using multiplier {}",
+                            employeeId, employee.getCategory().getName(), rawAutomaticWeekendOvertimeHours,
+                            automaticWeekendOvertimeHours, weekendOvertimeMultiplier);
+                }
 
                 int leaveDays = finalLeaveDaysMap.getOrDefault(employeeId, 0);
 
-                double leaveHours = leaveHoursMap.getOrDefault(employeeId, 0.0);
-                if (leaveDays > 0 && leaveHours == 0) {
-                    leaveHours = leaveDays * standardHoursPerDay;
-                }
+                double leaveHours = leaveDays * standardHoursPerDay;
 
                 int actualWorkingDays = adjustedHours.getWorkingDays();
                 double actualTotalHours = adjustedHours.getTotalHours();
 
-                int totalDaysInPeriod = calculateWorkingDaysInPeriod(period.getStartDate(), period.getEndDate(), employee);
-                double extraOvertimeHours = 0.0;
-
-                if (period.isConvertExcessToOvertime()) {
-                    totalDaysInPeriod = calculateWorkingDaysInPeriod(period.getStartDate(), period.getEndDate(), employee);
-                    int totalPaidDays = actualWorkingDays + leaveDays;
-
-                    if (totalPaidDays > totalDaysInPeriod) {
-                        logger.warn("Employee {} has {} total paid days ({} worked + {} leave) but period has only {} working days. Capping at period maximum.",
-                                employeeId, totalPaidDays, actualWorkingDays, leaveDays, totalDaysInPeriod);
-
-                        int extraDays = totalPaidDays - totalDaysInPeriod;
-                        int reducedLeaveDays = leaveDays;
-                        int reducedWorkingDays = actualWorkingDays;
-
-                        if (leaveDays >= extraDays) {
-                            reducedLeaveDays = leaveDays - extraDays;
-                            reducedWorkingDays = actualWorkingDays;
-                            extraOvertimeHours = extraDays * standardHoursPerDay;
-                            logger.info("  - Reduced leave days by {} (from {} to {})", extraDays, leaveDays, reducedLeaveDays);
-                        } else {
-                            int remainingExtra = extraDays - leaveDays;
-                            reducedLeaveDays = 0;
-                            reducedWorkingDays = actualWorkingDays - remainingExtra;
-                            extraOvertimeHours = extraDays * standardHoursPerDay;
-                            logger.info("  - Removed all {} leave days, plus {} working days", leaveDays, remainingExtra);
-                        }
-
-                        double cappedHours = totalDaysInPeriod * standardHoursPerDay;
-                        double originalTotalHours = actualTotalHours;
-                        double daysRatio = (double) totalDaysInPeriod / totalPaidDays;
-                        actualTotalHours = originalTotalHours * daysRatio;
-
-                        actualWorkingDays = reducedWorkingDays;
-                        leaveDays = reducedLeaveDays;
-                        leaveHours = reducedLeaveDays * standardHoursPerDay;
-
-                        double hoursRatio = actualTotalHours / originalTotalHours;
-                        double holidayHours = adjustedHours.getHolidayHours() * hoursRatio;
-                        double weekendHours = adjustedHours.getWeekendHours() * hoursRatio;
-                        double multiplierBonus = adjustedHours.getMultiplierBonus() * hoursRatio;
-
-                        adjustedHours = new MultiplierAdjustedHours(
-                                actualTotalHours,
-                                actualWorkingDays,
-                                holidayHours,
-                                weekendHours,
-                                (int) Math.round(adjustedHours.getHolidayDays() * hoursRatio),
-                                (int) Math.round(adjustedHours.getWeekendDays() * hoursRatio),
-                                multiplierBonus
-                        );
-
-                        logger.info("  - CAPPED: Total Paid Days from {} to {}, Working Days: {}, Leave Days: {}, Total Hours: {}",
-                                totalPaidDays, totalDaysInPeriod, actualWorkingDays, leaveDays, actualTotalHours);
-                    }
-                } else {
-                    logger.info("Period has convertExcessToOvertime = false. Keeping all {} paid days ({} worked + {} leave).",
-                            actualWorkingDays + leaveDays, actualWorkingDays, leaveDays);
-                }
+                int totalDaysInPeriod = PayrollAttendanceHours.weekdays(period.getStartDate(), period.getEndDate());
+                PayrollAttendanceHours.Split hours = PayrollAttendanceHours.split(
+                        actualTotalHours, totalDaysInPeriod, standardHoursPerDay, period.isConvertExcessToOvertime());
+                double extraOvertimeHours = hours.overtime();
+                double normalRatio = actualTotalHours > 0 ? hours.normal() / actualTotalHours : 1.0;
+                actualTotalHours = hours.normal();
+                if (period.isConvertExcessToOvertime()) actualWorkingDays = Math.min(actualWorkingDays, totalDaysInPeriod);
+                // Leave is paid separately; only worked attendance hours can become overtime.
+                adjustedHours = new MultiplierAdjustedHours(actualTotalHours, actualWorkingDays,
+                        adjustedHours.getHolidayHours() * normalRatio,
+                        adjustedHours.getWeekendHours() * normalRatio,
+                        adjustedHours.getHolidayDays(), adjustedHours.getWeekendDays(),
+                        adjustedHours.getMultiplierBonus() * normalRatio);
 
                 double approvedOvertimeHours = approvedOvertimeHoursMap.getOrDefault(employeeId, 0.0);
                 double preCalculatedOvertimePay = preCalculatedOvertimePayMap.getOrDefault(employeeId, 0.0);
+
+                if (automaticWeekendOvertimeHours > 0) {
+                    approvedOvertimeHours += automaticWeekendOvertimeHours;
+                }
 
                 if (extraOvertimeHours > 0) {
                     approvedOvertimeHours += extraOvertimeHours;
@@ -482,7 +580,8 @@ public class PayrollService {
 
                     // We'll still recalculate the base salary but preserve the loan deduction in net calculation
                 } else {
-                    record = new PayrollRecord();
+                    record = request.getEmployeeId() == null && !loanDeductionsAlreadyProcessed ? new PayrollRecord()
+                            : previousRates.getOrDefault(employeeId, new PayrollRecord());
                     record.setEmployee(employee);
                     record.setPeriod(period);
                 }
@@ -496,14 +595,6 @@ public class PayrollService {
                 record.setLeaveHours(leaveHours);
                 record.setTotalDaysInPeriod(totalDaysInPeriod);
                 record.setAppliedCreditIds(appliedCreditIds);
-
-                double standardHoursForPeriod = actualWorkingDays * standardHoursPerDay;
-                double regularHours = Math.min(actualTotalHours, standardHoursForPeriod);
-                double extraHoursFromAttendance = Math.max(0, actualTotalHours - standardHoursForPeriod);
-
-                double finalOvertimeHours = approvedOvertimeHours;
-                actualTotalHours = regularHours;
-                approvedOvertimeHours = finalOvertimeHours;
 
                 double holidayHours = adjustedHours.getHolidayHours();
                 double weekendHours = adjustedHours.getWeekendHours();
@@ -530,6 +621,7 @@ public class PayrollService {
                 setAllowances(record, employee, tempAllowances);
 
                 double creditAmount = allCreditAmounts.getOrDefault(employeeId, 0.0);
+                record.setCreditAmount(creditAmount);
                 if (creditAmount > 0) {
                     logger.info("Applying credit of {} to employee {}", creditAmount, employeeId);
                     record.setCreditAmount(creditAmount);
@@ -539,8 +631,70 @@ public class PayrollService {
                 logger.info("  - Exclude from SSNIT: {}", excludeFromSsnit ? "YES" : "NO");
 
                 // ==================== CALCULATE PAYROLL ====================
+                PayrollRecord previousRate = previousRates.get(employeeId);
+                Employee calculationEmployee = PayrollRateSelection.employeeForCalculation(employee, previousRate, request.getRateChoice());
+                double appliedOvertimeRate = PayrollRateSelection.effectiveRate(calculationEmployee);
+                if (preCalculatedOvertimePay > 0 && approvedOvertimeHours > 0) {
+                    // The OT multiplier is already reflected in payable hours.
+                    // Re-price those hours using the employee payroll rate, never a client billing rate.
+                    preCalculatedOvertimePay = approvedOvertimeHours * appliedOvertimeRate;
+                }
+                JobEmployeeRate projectRate = null;
+                if ("SAVED".equals(request.getRateChoice()) && previousRate != null && Boolean.TRUE.equals(previousRate.getRateSnapshotSaved())) {
+                    projectRate = new JobEmployeeRate();
+                    projectRate.setEffectivePayrollRate(previousRate.getAppliedEffectivePayrollRate());
+                    projectRate.setEffectivePayrollRateFrom(previousRate.getAppliedEffectivePayrollRateFrom());
+                    projectRate.setEffectivePayrollRateTo(previousRate.getAppliedEffectivePayrollRateTo());
+                } else if (period.isProjectPayroll() || employee.getJob() != null) {
+                    projectRate = jobEmployeeRateRepository.findByJobIdAndEmployeeId(period.isProjectPayroll() ? period.getProjectId() : employee.getJob().getId(), employeeId).orElse(null);
+                }
+                Long rateJobId = "SAVED".equals(request.getRateChoice()) && previousRate != null
+                        ? previousRate.getAppliedEffectivePayrollJobId() : period.isProjectPayroll() ? period.getProjectId() : employee.getJob() == null ? null : employee.getJob().getId();
+                record.setAppliedEffectivePayrollRate(null);
+                record.setAppliedEffectivePayrollRateFrom(null);
+                record.setAppliedEffectivePayrollRateTo(null);
+                record.setAppliedEffectivePayrollJobId(null);
+                record.setNormalRateHours(null);
+                record.setEffectiveRateHours(null);
+                record.setPrecalculatedHourlyBasicPay(null);
+                boolean hourlyBasic = calculationEmployee.getMinimumRate() != null && calculationEmployee.getMinimumRate() > 0
+                        && !(includeBasicSalary && calculationEmployee.getBasicSalary() != null && calculationEmployee.getBasicSalary() > 0)
+                        && !(employee.getCategory() != null && Boolean.TRUE.equals(employee.getCategory().getUseNonTaxableAllowances()));
+                if (hourlyBasic && projectRate != null && projectRate.getEffectivePayrollRate() != null && projectRate.getEffectivePayrollRateFrom() != null) {
+                    double remainingNormalHours = actualTotalHours;
+                    double effectiveHours = 0.0;
+                    // Allocate the existing period cap chronologically to actual worked dates.
+                    for (LocalDate date : new TreeSet<>(attendanceDates)) {
+                        if (weekendAttendanceAsOvertime && payrollCalculator.isWeekend(date, settings.getWeekendDays())
+                                && !payrollCalculator.isHoliday(date, settings.getHolidays())) continue;
+                        double payable = Math.min(remainingNormalHours, Math.min(standardHoursPerDay, Math.max(0.0, dailyHours.getOrDefault(date, 0.0))));
+                        if (projectRate.appliesOn(date)) effectiveHours += payable;
+                        remainingNormalHours -= payable;
+                    }
+                    record.setAppliedEffectivePayrollRate(projectRate.getEffectivePayrollRate());
+                    record.setAppliedEffectivePayrollRateFrom(projectRate.getEffectivePayrollRateFrom());
+                    record.setAppliedEffectivePayrollRateTo(projectRate.getEffectivePayrollRateTo());
+                    record.setAppliedEffectivePayrollJobId(rateJobId);
+                    record.setNormalRateHours(actualTotalHours - effectiveHours);
+                    record.setEffectiveRateHours(effectiveHours);
+                    if (effectiveHours > 0) record.setPrecalculatedHourlyBasicPay(
+                            (actualTotalHours - effectiveHours) * PayrollRateSelection.effectiveRate(calculationEmployee)
+                                    + effectiveHours * projectRate.getEffectivePayrollRate());
+                }
+                SettingsDTO overtimeSplitSettings = settings;
+                PayrollOvertimeRateHours.Split overtimeSplit = PayrollOvertimeRateHours.split(
+                        approvedOvertimeByEmployeeAndDate.getOrDefault(employeeId, Collections.emptyMap()),
+                        dailyHours, actualTotalHours, standardHoursPerDay, period.isConvertExcessToOvertime(),
+                        date -> weekendAttendanceAsOvertime
+                                && payrollCalculator.isWeekend(date, overtimeSplitSettings.getWeekendDays())
+                                && !payrollCalculator.isHoliday(date, overtimeSplitSettings.getHolidays()),
+                        sys.getDefaultOvertimeMultiplier() == null ? 1.0 : sys.getDefaultOvertimeMultiplier(),
+                        record.getAppliedEffectivePayrollRateFrom(), record.getAppliedEffectivePayrollRateTo());
+                record.setNormalRateOvertimeHours(overtimeSplit.oldRate());
+                record.setEffectiveRateOvertimeHours(overtimeSplit.newRate());
+                PayrollRateSelection.capture(record, calculationEmployee, appliedOvertimeRate);
                 ghanaPayrollCalculator.calculatePayrollWithMultipliers(
-                        employee,
+                        calculationEmployee,
                         period.getStartDate(),
                         period.getEndDate(),
                         actualTotalHours,
@@ -557,7 +711,8 @@ public class PayrollService {
                         sys,
                         preCalculatedOvertimePay,
                         creditAmount,
-                        excludeFromSsnit
+                        excludeFromSsnit,
+                        record.getPrecalculatedHourlyBasicPay()
                 );
 
                 // ==================== CRITICAL FIX: Re-apply preserved loan deduction to net salary ====================
@@ -579,11 +734,27 @@ public class PayrollService {
                     logger.info("  - SSNIT deductions ZEROED for employee {} (Excluded from SSNIT)", employee.getEmployeeId());
                 }
 
+                if (payrollProjectSnapshotService != null) {
+                    payrollProjectSnapshotService.capture(record, dailyHours,
+                            approvedOvertimeByEmployeeAndDate.getOrDefault(employeeId, Collections.emptyMap()),
+                            actualTotalHours, standardHoursPerDay, period.isConvertExcessToOvertime(),
+                            date -> weekendAttendanceAsOvertime
+                                    && payrollCalculator.isWeekend(date, overtimeSplitSettings.getWeekendDays())
+                                    && !payrollCalculator.isHoliday(date, overtimeSplitSettings.getHolidays()),
+                            sys.getDefaultOvertimeMultiplier() == null ? 1.0 : sys.getDefaultOvertimeMultiplier());
+                }
+                if (payrollWorkScopeService != null) {
+                    Set<LocalDate> paidDates = new TreeSet<>(attendanceDates);
+                    paidDates.addAll(approvedOvertimeByEmployeeAndDate.getOrDefault(employeeId,Collections.emptyMap()).keySet());
+                    paidDates.addAll(leaveDates.getOrDefault(employeeId,Collections.emptySet()));
+                    record.setPayrollWorkDates(payrollWorkScopeService.snapshot(paidDates));
+                }
                 validatePayrollRecord(record, employeeId);
                 recordsToSave.add(record);
                 processedCount++;
 
             } catch (Exception ex) {
+                if (workScope != null || request.getEmployeeId() != null) throw new IllegalStateException("Could not generate payroll; no records were saved", ex);
                 logger.error("Failed to process employee {}: {}", employeeId, ex.getMessage(), ex);
                 employeeRepository.findByIdAndActiveTrue(employeeId).ifPresent(e ->
                         createErrorPayrollRecord(employeeId, period, ex.getMessage())
@@ -612,10 +783,10 @@ public class PayrollService {
         boolean loanDeductionsProcessed = false;
         int loanUpdatesCount = 0;
 
-        if (!loanDeductionsAlreadyProcessed) {
+        if (!loanDeductionsAlreadyProcessed || request.getEmployeeId() == null) {
             try {
                 logger.info("Processing loan deductions for period {} (first time)", periodId);
-                loanDeductionService.processLoanDeductions(periodId);
+                loanDeductionService.processLoanDeductions(periodId, request.getEmployeeId());
                 loanDeductionsProcessed = true;
                 loanUpdatesCount = payrollRecordRepository.findByPeriodId(periodId).stream()
                         .filter(r -> r.getLoanDeduction() != null && r.getLoanDeduction() > 0)
@@ -624,6 +795,7 @@ public class PayrollService {
                 logger.info("Processed loan deductions for period {}. Updated {} employees with loans.",
                         periodId, loanUpdatesCount);
             } catch (Exception e) {
+                if (period.isProjectPayroll() || request.getEmployeeId() != null) throw new IllegalStateException("Could not process payroll loans", e);
                 logger.error("Loan processing failed for period {}: {}", periodId, e.getMessage(), e);
             }
         } else {
@@ -643,6 +815,8 @@ public class PayrollService {
         result.put("creditsApplied", allCreditAmounts.size());
         result.put("appliedCreditIds", appliedCreditIds);
         result.put("employeeCount", processedCount);
+        result.put("excludedAlreadyAllocatedWorkDays", workScope == null ? 0 : workScope.excludedDays);
+        result.put("periodType", period.isProjectPayroll() ? "PROJECT" : "CATEGORY");
         result.put("loanDeductionsProcessed", loanDeductionsProcessed);
         result.put("loanUpdatesCount", loanUpdatesCount);
         result.put("loanDeductionsPreserved", loanDeductionsAlreadyProcessed);
@@ -854,51 +1028,6 @@ public class PayrollService {
         return calculateWorkingDaysInPeriod(startDate, endDate, null);
     }
 
-    private Map<Long, Integer> calculateLeaveDaysFromAttendance(List<Object[]> leaveAttendanceRecords, PayrollPeriod period) {
-        Map<Long, Integer> leaveDaysMap = new HashMap<>();
-
-        if (leaveAttendanceRecords == null || leaveAttendanceRecords.isEmpty()) {
-            logger.info("No leave attendance records found");
-            return leaveDaysMap;
-        }
-
-        logger.info("Processing {} leave attendance records", leaveAttendanceRecords.size());
-
-        for (Object[] record : leaveAttendanceRecords) {
-            if (record.length >= 4 && record[0] != null && record[1] != null && record[3] != null) {
-                Long employeeId = ((Number) record[0]).longValue();
-
-                LocalDate attendanceDate;
-                if (record[1] instanceof java.sql.Date) {
-                    attendanceDate = ((java.sql.Date) record[1]).toLocalDate();
-                } else if (record[1] instanceof LocalDate) {
-                    attendanceDate = (LocalDate) record[1];
-                } else {
-                    logger.warn("Unexpected date type in leave attendance: {}", record[1].getClass().getName());
-                    continue;
-                }
-
-                String status = (String) record[3];
-
-                if ("On Leave".equalsIgnoreCase(status) || "Leave".equalsIgnoreCase(status)) {
-                    if (!attendanceDate.isBefore(period.getStartDate()) &&
-                            !attendanceDate.isAfter(period.getEndDate())) {
-
-                        leaveDaysMap.merge(employeeId, 1, Integer::sum);
-
-                        logger.debug("Found leave day for employee {}: {}", employeeId, attendanceDate);
-                    }
-                }
-            }
-        }
-
-        logger.info("Total employees with leave days from attendance: {}", leaveDaysMap.size());
-        leaveDaysMap.forEach((empId, days) ->
-                logger.info("Employee {}: {} leave days from attendance", empId, days));
-
-        return leaveDaysMap;
-    }
-
     private void validatePayrollRecord(PayrollRecord record, Long employeeId) {
         if (record.getBasicSalary() == 0 && record.getTotalHours() > 0) {
             logger.warn("ZERO basic salary for employee {} with {} working hours",
@@ -982,7 +1111,8 @@ public class PayrollService {
     private MultiplierAdjustedHours calculateMultiplierAdjustedHours(List<LocalDate> attendanceDates,
                                                                      Map<LocalDate, Double> dailyHours,
                                                                      SettingsDTO settings,
-                                                                     PayrollPeriod period) {
+                                                                     PayrollPeriod period,
+                                                                     double standardHoursPerDay) {
         double totalHours = 0.0;
         double holidayHours = 0.0;
         double weekendHours = 0.0;
@@ -992,8 +1122,12 @@ public class PayrollService {
         int workingDays = 0;
 
         for (LocalDate date : attendanceDates) {
-            Double hours = dailyHours.getOrDefault(date, 0.0);
-            if (hours > 0) {
+            double recordedHours = dailyHours.getOrDefault(date, 0.0);
+            if (recordedHours > 0) {
+                // Regular payroll hours are capped for each attendance day before
+                // they are summed. This preserves partial days instead of allowing
+                // excess hours on one day to offset a short day elsewhere.
+                double hours = Math.min(recordedHours, standardHoursPerDay);
                 totalHours += hours;
                 workingDays++;
 
@@ -1121,6 +1255,7 @@ public class PayrollService {
      * Now respects employee's category setting for weekend exclusion
      */
     private double calculateOverlappingHours(Leave leave, PayrollPeriod period, Employee employee) {
+        if (leave.isUnpaid()) return 0.0;
         LocalDate leaveStart = leave.getStartDate();
         LocalDate leaveEnd = leave.getEndDate();
         LocalDate periodStart = period.getStartDate();
@@ -1215,24 +1350,70 @@ public class PayrollService {
         return payrollPeriodRepository.findAllByOrderByStartDateDesc();
     }
 
+    @Transactional
     public PayrollPeriod createPeriod(PayrollPeriod period) {
+        if (period.getStartDate() == null || period.getEndDate() == null) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
         if (period.getStartDate().isAfter(period.getEndDate())) {
             throw new IllegalArgumentException("Start date cannot be after end date");
         }
-
+        if (period.isProjectPayroll()) {
+            if (period.getProjectId() == null) throw new IllegalArgumentException("Select a project");
+            Job project = projectPayrollJobs.findById(period.getProjectId()).orElseThrow(() -> new IllegalArgumentException("Project not found"));
+            if (!payrollPeriodRepository.findOverlappingProjectPeriods(period.getStartDate(),period.getEndDate(),period.getProjectId()).isEmpty())
+                throw new IllegalArgumentException("Payroll period overlaps another period for this project");
+            period.setProjectName(project.getName()); period.setCategory(null); period.setStatus("Open");
+            return payrollPeriodRepository.save(period);
+        }
+        if (period.getPeriodType() != null && !"CATEGORY".equals(period.getPeriodType())) throw new IllegalArgumentException("Invalid payroll period type");
+        period.setPeriodType("CATEGORY"); period.setProjectId(null); period.setProjectName(null);
+        if (period.getCategory() == null || period.getCategory().trim().isEmpty()) {
+            throw new IllegalArgumentException("Category is required");
+        }
+        if (!payrollPeriodRepository.findOverlappingPeriodsForCategory(
+                period.getStartDate(), period.getEndDate(), period.getCategory()).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Payroll period overlaps with existing period in category: " + period.getCategory());
+        }
         return payrollPeriodRepository.save(period);
     }
 
+    @Transactional(readOnly = true)
     public List<PayrollRecord> getPayrollForPeriod(Long periodId) {
         List<PayrollRecord> records = payrollRecordRepository.findByPeriodId(periodId);
         if (records.isEmpty()) {
             throw new ResourceNotFoundException("No payroll records found for period ID: " + periodId);
+        }
+        if (records.stream().anyMatch(r -> r.getNormalRateOvertimeHours() == null || r.getEffectiveRateOvertimeHours() == null)) {
+            PayrollPeriod period = records.get(0).getPeriod();
+            Map<Long, Map<LocalDate, Double>> datedOvertime = new HashMap<>();
+            overtimeRepository.findApprovedOvertimeForPayrollPeriod(period.getStartDate(), period.getEndDate())
+                    .forEach(o -> {
+                        if (o.getEmployee() != null && o.getDate() != null && o.getOvertimeHours() != null)
+                            datedOvertime.computeIfAbsent(o.getEmployee().getId(), ignored -> new HashMap<>())
+                                    .merge(o.getDate(), o.getOvertimeHours(), Double::sum);
+                    });
+            for (PayrollRecord record : records) {
+                if (record.getNormalRateOvertimeHours() != null && record.getEffectiveRateOvertimeHours() != null) continue;
+                double savedTotal = record.getOvertimeHours() == null ? 0 : record.getOvertimeHours();
+                Map<LocalDate, Double> dated = datedOvertime.getOrDefault(record.getEmployee().getId(), Collections.emptyMap());
+                double datedTotal = dated.values().stream().mapToDouble(Double::doubleValue).sum();
+                if (Math.abs(savedTotal - datedTotal) < 0.000001) {
+                    PayrollOvertimeRateHours.Split split = PayrollOvertimeRateHours.split(
+                            dated, Collections.emptyMap(), 0, 0, false, date -> false, 1,
+                            record.getAppliedEffectivePayrollRateFrom(), record.getAppliedEffectivePayrollRateTo());
+                    record.setNormalRateOvertimeHours(split.oldRate());
+                    record.setEffectiveRateOvertimeHours(split.newRate());
+                }
+            }
         }
         return records;
     }
 
     @Transactional
     public void processPayroll(Long periodId) {
+        payrollPeriodRepository.lockForPayrollGeneration();
         logger.info("Processing payroll for period ID: {}", periodId);
         List<PayrollRecord> records = payrollRecordRepository.findByPeriodId(periodId);
         if (records.isEmpty()) {
@@ -1432,12 +1613,22 @@ public class PayrollService {
                     logger.info("  - SSNIT deductions ZEROED for employee {} (Excluded from SSNIT)", employee.getEmployeeId());
                 }
 
-                double overtimeMultiplier = (sys != null && sys.getDefaultOvertimeMultiplier() != null)
-                        ? sys.getDefaultOvertimeMultiplier()
-                        : 1.5;
+                Job employeeJob = employee.getJob();
+                double overtimeMultiplier = employeeJob != null
+                        && employeeJob.getOvertimeMultiplier() != null
+                        && employeeJob.getOvertimeMultiplier() > 0
+                        ? employeeJob.getOvertimeMultiplier()
+                        : (sys != null && sys.getDefaultOvertimeMultiplier() != null
+                            ? sys.getDefaultOvertimeMultiplier()
+                            : 1.5);
 
                 double rawOvertime = record.getOvertimeHours() != null ? record.getOvertimeHours() : 0.0;
-                record.setWeightedOvertimeHours(rawOvertime * overtimeMultiplier);
+                double payableOvertime = employeeJob != null
+                        && Boolean.TRUE.equals(employeeJob.getEnforceMinimumOvertime())
+                        && employeeJob.getMinimumOvertimeHours() != null
+                        ? Math.max(rawOvertime, employeeJob.getMinimumOvertimeHours())
+                        : rawOvertime;
+                record.setWeightedOvertimeHours(payableOvertime * overtimeMultiplier);
 
                 payrollRecordRepository.save(record);
             } catch (Exception e) {
@@ -1490,13 +1681,16 @@ public class PayrollService {
                 systemSettings,
                 record.getOvertimePay() != null ? record.getOvertimePay() : 0.0,
                 creditAmount,
-                employee.getExcludeFromSsnit()
+                employee.getExcludeFromSsnit(),
+                record.getPrecalculatedHourlyBasicPay()
         );
 
         if (loanDeduction > 0) {
             record.setNetSalary(record.getNetSalary() - loanDeduction);
             record.setLoanDeduction(loanDeduction);
         }
+        // This path recalculates pay outside generation; do not expose a stale project allocation.
+        record.setProjectEarningsSnapshot(null);
         record.setUsesTemporaryAllowances(false);
         record.setIncludeBasicSalary(true);
         return payrollRecordRepository.save(record);
@@ -1504,6 +1698,8 @@ public class PayrollService {
 
     @Transactional
     public void deletePayrollPeriod(Long periodId) {
+        payrollPeriodRepository.lockForPayrollGeneration();
+        if(!payrollRecordRepository.findByPeriodId(periodId).isEmpty()) throw new IllegalStateException("Clear unprocessed payroll records before deleting the period; processed payment history must be retained");
         logger.info("Deleting payroll period ID: {}", periodId);
 
         PayrollPeriod period = payrollPeriodRepository.findById(periodId)
@@ -1792,6 +1988,8 @@ public class PayrollService {
         return response;
     }
 
+
+
     public MonthlyReportResponseDTO getPayrollReportForSpecificMonth(String yearMonth) {
         MonthlyReportResponseDTO response = new MonthlyReportResponseDTO();
 
@@ -1914,6 +2112,9 @@ public class PayrollService {
     public void generatePayroll(GeneratePayrollRequest request) {
         GeneratePayrollWithCreditsRequest newRequest = new GeneratePayrollWithCreditsRequest();
         newRequest.setPeriodId(request.getPeriodId());
+        newRequest.setEmployeeId(request.getEmployeeId());
+        newRequest.setExcludedEmployeeIds(request.getExcludedEmployeeIds());
+        newRequest.setRateChoice(request.getRateChoice());
         newRequest.setSelectedCreditIds(new ArrayList<>());
         newRequest.setTemporaryAllowances(request.getTemporaryAllowances());
         newRequest.setSettings(request.getSettings());
@@ -1940,6 +2141,18 @@ public class PayrollService {
         PayrollPeriod existingPeriod = payrollPeriodRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Payroll period not found with id: " + id));
 
+        if (!payrollRecordRepository.findByPeriodId(id).isEmpty()) throw new IllegalStateException("Clear unprocessed payroll records before editing the period");
+        if (existingPeriod.isProjectPayroll()) {
+            LocalDate start = periodDetails.getStartDate() == null ? existingPeriod.getStartDate() : periodDetails.getStartDate();
+            LocalDate end = periodDetails.getEndDate() == null ? existingPeriod.getEndDate() : periodDetails.getEndDate();
+            if (start.isAfter(end)) throw new IllegalArgumentException("Start date cannot be after end date");
+            if (payrollPeriodRepository.findOverlappingProjectPeriods(start,end,existingPeriod.getProjectId()).stream().anyMatch(p -> !id.equals(p.getId())))
+                throw new IllegalArgumentException("Project payroll periods cannot overlap");
+            existingPeriod.setStartDate(start); existingPeriod.setEndDate(end);
+            if (periodDetails.getName() != null && !periodDetails.getName().isBlank()) existingPeriod.setName(periodDetails.getName());
+            existingPeriod.setConvertExcessToOvertime(periodDetails.isConvertExcessToOvertime());
+            return payrollPeriodRepository.save(existingPeriod);
+        }
         if (periodDetails.getName() != null && !periodDetails.getName().trim().isEmpty()) {
             existingPeriod.setName(periodDetails.getName());
         }
@@ -1981,6 +2194,9 @@ public class PayrollService {
 
     @Transactional
     public int deletePayrollRecordsByPeriodId(Long periodId) {
+        payrollPeriodRepository.lockForPayrollGeneration();
+        if(payrollRecordRepository.findByPeriodId(periodId).stream().anyMatch(r->"Processed".equals(r.getStatus())))
+            throw new IllegalStateException("Processed payroll cannot be cleared because its paid work dates must remain protected");
         PayrollPeriod period = payrollPeriodRepository.findById(periodId)
                 .orElseThrow(() -> new IllegalArgumentException("Payroll period not found with id: " + periodId));
 
@@ -2026,6 +2242,7 @@ public class PayrollService {
         Set<Long> employeeIds = new HashSet<>();
         List<Object[]> attendanceData = attendanceRepository.findEmployeeIdsInPeriod(period.getStartDate(), period.getEndDate());
         attendanceData.forEach(row -> employeeIds.add(((Number) row[0]).longValue()));
+        if(period.isProjectPayroll()) { employeeIds.clear(); employeeIds.addAll(payrollWorkScopeService.prepare(period).workDates.keySet()); }
 
         if (employeeIds.isEmpty()) {
             return Collections.emptyList();

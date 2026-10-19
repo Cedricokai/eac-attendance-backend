@@ -8,6 +8,11 @@ import java.util.List;
 
 @Data
 public class DirectPurchaseResponseDTO {
+    private Long inventoryRequestId;
+    private String inventoryRequestNumber;
+    private Long createdByUserId;
+    private String createdByName;
+
 
     private Long id;
     private String requestNumber;

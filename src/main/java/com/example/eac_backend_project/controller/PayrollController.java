@@ -47,6 +47,14 @@ public class PayrollController {
         this.loanDeductionService = loanDeductionService;
     }
 
+    @Autowired
+    private com.example.eac_backend_project.Service.TimesheetPayrollApprovalService timesheetPayrollApproval;
+    @GetMapping("/generation-review")
+    public Map<String,Object> generationReview(@RequestParam Long periodId, @RequestParam(required=false) Long employeeId,
+            @RequestParam(required=false) List<Long> excludedEmployeeIds) {
+        return timesheetPayrollApproval.review(periodId,employeeId,excludedEmployeeIds);
+    }
+
     // ==================== EXISTING ENDPOINTS ====================
 
     @GetMapping("/periods")
@@ -117,6 +125,23 @@ public class PayrollController {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(pdfBytes);
+    }
+
+    // Separate routes prevent older servers from silently treating a scoped request as a full run.
+    @PostMapping("/generate-employee")
+    public ResponseEntity<?> generateEmployeePayroll(@RequestBody GeneratePayrollRequest request) {
+        if (request.getEmployeeId() == null) return ResponseEntity.badRequest().body(Map.of("error", "Select an employee"));
+        return generatePayroll(request);
+    }
+
+    @PostMapping("/generate-employee-with-credits")
+    public ResponseEntity<?> generateEmployeePayrollWithCredits(@RequestBody GeneratePayrollWithCreditsRequest request) {
+        if (request.getEmployeeId() == null) return ResponseEntity.badRequest().body(Map.of("error", "Select an employee"));
+        try {
+            return ResponseEntity.ok(payrollService.generatePayrollWithSelectedCredits(request));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PostMapping("/generate")
@@ -712,4 +737,5 @@ public class PayrollController {
                     .body(Map.of("error", "Failed to fetch payroll period: " + e.getMessage()));
         }
     }
+
 }

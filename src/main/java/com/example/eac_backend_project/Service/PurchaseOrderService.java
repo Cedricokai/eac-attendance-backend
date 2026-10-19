@@ -1,6 +1,7 @@
 package com.example.eac_backend_project.Service;
 
 import com.example.eac_backend_project.dto.PurchaseOrderDTO;
+import com.example.eac_backend_project.Service.email.EmailService;
 import com.example.eac_backend_project.dto.StoreReceiptDTO;
 import com.example.eac_backend_project.entity.inventory.PurchaseOrder;
 import com.example.eac_backend_project.entity.inventory.PurchaseOrderItem;
@@ -23,16 +24,19 @@ public class PurchaseOrderService {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final ProductRepository productRepository;
     private final InventoryRequestService inventoryRequestService;
+    private final EmailService emailService;
 
     @Autowired
     private StoreReceiptRepository storeReceiptRepository;
 
     public PurchaseOrderService(PurchaseOrderRepository purchaseOrderRepository,
                                 ProductRepository productRepository,
-                                InventoryRequestService inventoryRequestService) {
+                                InventoryRequestService inventoryRequestService,
+                                EmailService emailService) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.productRepository = productRepository;
         this.inventoryRequestService = inventoryRequestService;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -94,7 +98,17 @@ public class PurchaseOrderService {
 
         purchaseOrder.setTotalAmount(totalAmount);
 
-        return purchaseOrderRepository.save(purchaseOrder);
+        PurchaseOrder savedOrder = purchaseOrderRepository.save(purchaseOrder);
+
+        // New Procurement Purchase -> configured reviewer(s)
+        try {
+            emailService.sendProcurementPurchaseCreated(savedOrder);
+        } catch (Exception emailError) {
+            // Never fail the purchase because notification mail failed.
+            System.err.println("Failed to send Procurement Purchase reviewer email: " + emailError.getMessage());
+        }
+
+        return savedOrder;
     }
 
     @Transactional
@@ -139,7 +153,17 @@ public class PurchaseOrderService {
             }
         }
 
-        return purchaseOrderRepository.save(order);
+        PurchaseOrder savedOrder = purchaseOrderRepository.save(order);
+
+        // Explicit Notify Store action -> configured Store recipient(s)
+        try {
+            emailService.sendProcurementPurchaseStoreNotification(savedOrder, notificationNotes);
+        } catch (Exception emailError) {
+            // Do not roll back the business action if the SMTP server is unavailable.
+            System.err.println("Failed to send Procurement Purchase Store email: " + emailError.getMessage());
+        }
+
+        return savedOrder;
     }
 
     @Transactional

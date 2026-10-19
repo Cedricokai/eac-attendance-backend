@@ -15,6 +15,7 @@ public enum RequestStatus {
     APPROVED_BY_PLANNER,
     APPROVED_BY_PROCUREMENT,
     // Final lifecycle
+    PARTIALLY_ISSUED,
     ISSUED,
     RECEIVED,           // if you also have a confirmation of receipt step
     REJECTED_BY_PLANNER,

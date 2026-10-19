@@ -2,17 +2,17 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8" />
-    <title>Assigned to Job</title>
+    <title>Assigned to Project</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.5;">
 <h2 th:text="'Hello ' + (${employeeName} ?: 'Employee') + ','">Hello Employee,</h2>
 
 <p>
-    You have been assigned to the following job:
+    You have been assigned to the following project:
 </p>
 
 <div style="padding:12px;border:1px solid #ddd;border-radius:8px;background:#fafafa;">
-    <p><strong>Job:</strong> <span th:text="${jobName}">Job Name</span></p>
+    <p><strong>Project:</strong> <span th:text="${jobName}">Project Name</span></p>
     <p><strong>Client:</strong> <span th:text="${client}">Client</span></p>
     <p><strong>Start Date:</strong> <span th:text="${startDate}">2026-01-01</span></p>
     <p th:if="${endDate != null}"><strong>End Date:</strong> <span th:text="${endDate}">2026-02-01</span></p>
@@ -20,7 +20,7 @@
 
 <p style="margin-top:16px;">
     You can view details here:
-    <a th:href="${jobLink}" th:text="${jobLink}">Job Link</a>
+    <a th:href="${jobLink}" th:text="${jobLink}">Project Link</a>
 </p>
 
 <hr />

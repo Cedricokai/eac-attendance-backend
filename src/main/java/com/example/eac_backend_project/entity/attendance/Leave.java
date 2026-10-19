@@ -110,7 +110,12 @@ public class Leave {
     /**
      * Calculate total leave hours based on business days and standard hours
      */
+    public boolean isUnpaid() {
+        return leaveType != null && "unpaid".equalsIgnoreCase(leaveType.trim().replaceAll("(?i)\\s+leave$", ""));
+    }
+
     public void calculateTotalLeaveHours() {
+        if (isUnpaid()) { this.totalLeaveHours = 0.0; return; }
         if (startDate == null || endDate == null) {
             this.totalLeaveHours = 0.0;
             return;
@@ -174,6 +179,7 @@ public class Leave {
 
     // Getters and setters
     public Double getTotalLeaveHours() {
+        if (isUnpaid()) return 0.0;
         // Ensure totalLeaveHours is always calculated
         if (totalLeaveHours == null) {
             calculateTotalLeaveHours();

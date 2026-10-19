@@ -16,6 +16,18 @@ public class LunchSettingsController {
 
     private final LunchSettingsService settingsService;
 
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    public ResponseEntity<java.util.Map<String, String>> getSettings() {
+        return ResponseEntity.ok(settingsService.getSettings());
+    }
+
+    @PutMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.Map<String, String>> updateSettings(@RequestBody java.util.Map<String, Object> values) {
+        return ResponseEntity.ok(settingsService.updateSettings(values));
+    }
+
     @GetMapping("/{key}")
     @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     public ResponseEntity<LunchSettings> getSetting(@PathVariable String key) {

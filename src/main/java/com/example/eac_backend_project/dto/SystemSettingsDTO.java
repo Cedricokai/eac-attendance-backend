@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalTime;
 import java.util.List;
+import java.math.BigDecimal;
 
 @Data
 public class SystemSettingsDTO {
@@ -32,6 +33,10 @@ public class SystemSettingsDTO {
     private String overtimeRequestRecipients;
     private String attendanceValidationRecipients;
     private String leaveApprovalRecipients;
+    private String accountRequestRecipients;
+    private String supportRequestRecipients;
+    private BigDecimal pettyCashThreshold;
+    private String pettyCashRequestRecipients;
 
     private Double defaultOvertimeMultiplier;
     private Double sundayOvertimeMultiplier;
@@ -128,4 +133,12 @@ public class SystemSettingsDTO {
     public void setLoanApprovalRecipients(String loanApprovalRecipients) { this.loanApprovalRecipients = loanApprovalRecipients; }
     public String getLoanRejectionRecipients() { return loanRejectionRecipients; }
     public void setLoanRejectionRecipients(String loanRejectionRecipients) { this.loanRejectionRecipients = loanRejectionRecipients; }
+    public String getAccountRequestRecipients() { return accountRequestRecipients; }
+    public void setAccountRequestRecipients(String accountRequestRecipients) { this.accountRequestRecipients = accountRequestRecipients; }
+    public String getSupportRequestRecipients() { return supportRequestRecipients; }
+    public void setSupportRequestRecipients(String supportRequestRecipients) { this.supportRequestRecipients = supportRequestRecipients; }
+    public BigDecimal getPettyCashThreshold() { return pettyCashThreshold; }
+    public void setPettyCashThreshold(BigDecimal pettyCashThreshold) { this.pettyCashThreshold = pettyCashThreshold; }
+    public String getPettyCashRequestRecipients() { return pettyCashRequestRecipients; }
+    public void setPettyCashRequestRecipients(String pettyCashRequestRecipients) { this.pettyCashRequestRecipients = pettyCashRequestRecipients; }
 }

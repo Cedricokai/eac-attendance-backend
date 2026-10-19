@@ -16,6 +16,27 @@ import java.time.LocalTime;
 @Data
 @Table(name = "attendance")
 public class Attendance {
+    private Long timesheetId;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private String timesheetApprovalFingerprint;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private String timesheetApprovedWork;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String approvedWorkSignature() {
+        return String.join("|", String.valueOf(employee == null ? null : employee.getId()), String.valueOf(date),
+                String.valueOf(timesheetId), String.valueOf(projectId), String.valueOf(minimumHour),
+                String.valueOf(overtime), String.valueOf(status), String.valueOf(checkIn), String.valueOf(checkOut));
+    }
+    @PreUpdate
+    @PrePersist
+    public void invalidateEditedApprovedWork() {
+        if (timesheetApprovalFingerprint != null && !approvedWorkSignature().equals(timesheetApprovedWork))
+            timesheetApprovalFingerprint = null;
+    }
+
+    private Long projectId;
+    private String projectName;
 
     @Getter
     @Id

@@ -9,10 +9,13 @@ public class CategoryDTO {
     private Integer standardRateHours;
     private Boolean useNonTaxableAllowances;
     private String workStartTime;
+    private java.time.LocalTime absenceCutoffTime;
+    private Boolean overnightShift;
     private Boolean excludeWeekendsFromLeave;
     private Integer annualLeaveDays;
     private Boolean skipAutoAbsent;
     private Boolean applyWithholdingTax;
+    private Boolean weekendAttendanceAsOvertime;
 
     // NEW FIELDS
     private String supervisorEmails;

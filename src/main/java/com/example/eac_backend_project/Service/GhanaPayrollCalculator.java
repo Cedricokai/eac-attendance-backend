@@ -19,12 +19,13 @@ public class GhanaPayrollCalculator {
     private static final Logger logger = LoggerFactory.getLogger(GhanaPayrollCalculator.class);
 
     // cumulative thresholds based on the table you posted
-    private static final double TIER_1_LIMIT = 490.0;        // 0%
-    private static final double TIER_2_LIMIT = 600.0;        // 5%
-    private static final double TIER_3_LIMIT = 730.0;        // 10%
-    private static final double TIER_4_LIMIT = 3896.67;      // 17.5%
-    private static final double TIER_5_LIMIT = 19896.67;     // 25%
-    private static final double TIER_6_LIMIT = 50416.67;     // 30%
+    // PAYE cumulative thresholds - matched exactly to Excel formula
+    private static final double TIER_1_LIMIT = 588.0;      // 0%
+    private static final double TIER_2_LIMIT = 668.0;      // 5%
+    private static final double TIER_3_LIMIT = 768.0;      // 10%
+    private static final double TIER_4_LIMIT = 3668.0;     // 17.5%
+    private static final double TIER_5_LIMIT = 19668.0;    // 25%
+    private static final double TIER_6_LIMIT = 50000.0;    // 30%
 
     private static final double TIER_1_RATE = 0.0;
     private static final double TIER_2_RATE = 0.05;
@@ -87,7 +88,9 @@ public class GhanaPayrollCalculator {
 
         if (useNonTaxableAllowances) {
             if (hasHourlyRate) {
-                basicSalary = calculateBasicSalaryFromTotalHours(employee, totalHours);
+                basicSalary = record.getPrecalculatedHourlyBasicPay() != null
+                        ? record.getPrecalculatedHourlyBasicPay() + (record.getLeaveHours() == null ? 0.0 : record.getLeaveHours()) * getEffectiveHourlyRate(employee)
+                        : calculateBasicSalaryFromTotalHours(employee, totalHours);
             } else {
                 basicSalary = calculateBasicSalaryWithProration(employee, totalDaysInPeriod, totalPaidDays);
             }
@@ -100,7 +103,9 @@ public class GhanaPayrollCalculator {
             logger.info("NSS MODE: Basic Salary = {} (EXEMPT from SSNIT and PAYE)", basicSalary);
         } else {
             if (hasHourlyRate) {
-                basicSalary = calculateBasicSalaryFromTotalHours(employee, totalHours);
+                basicSalary = record.getPrecalculatedHourlyBasicPay() != null
+                        ? record.getPrecalculatedHourlyBasicPay() + (record.getLeaveHours() == null ? 0.0 : record.getLeaveHours()) * getEffectiveHourlyRate(employee)
+                        : calculateBasicSalaryFromTotalHours(employee, totalHours);
                 overtimePay = calculateBasicOvertimePay(employee, overtimeHours);
             } else {
                 basicSalary = record.getBasicSalary() != null ? record.getBasicSalary() : 0.0;
@@ -234,6 +239,30 @@ public class GhanaPayrollCalculator {
                                                 double preCalculatedOvertimePay,
                                                 double creditAmount,
                                                 Boolean excludeFromSsnit) {
+        calculatePayrollWithMultipliers(employee, periodStart, periodEnd, normalAttendanceHours,
+                actualWorkingDays, overtimeHours, leaveDays, totalLeaveHours, holidayHours, weekendHours,
+                multiplierBonus, settings, includeBasicSalary, record, sys, preCalculatedOvertimePay,
+                creditAmount, excludeFromSsnit, null);
+    }
+
+    public void calculatePayrollWithMultipliers(Employee employee,
+                                                LocalDate periodStart,
+                                                LocalDate periodEnd,
+                                                double normalAttendanceHours,
+                                                int actualWorkingDays,
+                                                double overtimeHours,
+                                                int leaveDays,
+                                                double totalLeaveHours,
+                                                double holidayHours,
+                                                double weekendHours,
+                                                double multiplierBonus,
+                                                SettingsDTO settings,
+                                                boolean includeBasicSalary,
+                                                PayrollRecord record,
+                                                SystemSettings sys,
+                                                double preCalculatedOvertimePay,
+                                                double creditAmount,
+                                                Boolean excludeFromSsnit, Double preCalculatedHourlyBasicPay) {
 
         if (employee == null || record == null) {
             logger.warn("Cannot calculate payroll: Employee or PayrollRecord is null");
@@ -399,7 +428,9 @@ public class GhanaPayrollCalculator {
             } else {
                 // Monthly salary is 0 or null → fallback to hourly rate if exists
                 if (hasHourlyRate) {
-                    basicSalary = calculateBasicSalaryFromTotalHoursWithLeave(employee, normalAttendanceHours, totalLeaveHours);
+                    basicSalary = preCalculatedHourlyBasicPay != null
+                            ? preCalculatedHourlyBasicPay + totalLeaveHours * getEffectiveHourlyRate(employee)
+                            : calculateBasicSalaryFromTotalHoursWithLeave(employee, normalAttendanceHours, totalLeaveHours);
                     overtimePay = calculateBasicOvertimePay(employee, overtimeHours);
                     logger.info("Monthly salary is 0, using hourly rate: Basic Salary = {} from {} total hours, Overtime Pay = {}",
                             basicSalary, totalHours, overtimePay);
@@ -412,7 +443,9 @@ public class GhanaPayrollCalculator {
         } else {
             // Checkbox OFF: use hourly rate if available, otherwise 0
             if (hasHourlyRate) {
-                basicSalary = calculateBasicSalaryFromTotalHoursWithLeave(employee, normalAttendanceHours, totalLeaveHours);
+                basicSalary = preCalculatedHourlyBasicPay != null
+                            ? preCalculatedHourlyBasicPay + totalLeaveHours * getEffectiveHourlyRate(employee)
+                            : calculateBasicSalaryFromTotalHoursWithLeave(employee, normalAttendanceHours, totalLeaveHours);
                 overtimePay = calculateBasicOvertimePay(employee, overtimeHours);
                 logger.info("Hourly rate calcuaclation (checkbox off): Basic Salary = {} from {} total hours, Overtime Pay = {}",
                         basicSalary, totalHours, overtimePay);
@@ -591,141 +624,117 @@ public class GhanaPayrollCalculator {
     }
 
     private double calculatePAYETax(double chargeableIncome) {
+
         if (chargeableIncome <= 0) {
-            logger.info("[PAYE] Chargeable income <= 0. PAYE = 0.00 (income={})", chargeableIncome);
+            logger.info("[PAYE] Chargeable income <= 0. PAYE = 0.00 (income={})",
+                    chargeableIncome);
             return 0.0;
         }
 
         logger.info("[PAYE] START | chargeableIncome={}", round(chargeableIncome));
-        logger.info("[PAYE] Tiers: t1={} ({}%), t2={} ({}%), t3={} ({}%), t4={} ({}%), t5={} ({}%), t6={} ({}%), t7Rate={}% (exceeding)",
-                TIER_1_LIMIT, (TIER_1_RATE * 100),
-                TIER_2_LIMIT, (TIER_2_RATE * 100),
-                TIER_3_LIMIT, (TIER_3_RATE * 100),
-                TIER_4_LIMIT, (TIER_4_RATE * 100),
-                TIER_5_LIMIT, (TIER_5_RATE * 100),
-                TIER_6_LIMIT, (TIER_6_RATE * 100),
-                (TIER_7_RATE * 100));
 
-        double tax = 0.0;
+        double tax;
 
-        double band2Width = TIER_2_LIMIT - TIER_1_LIMIT;
-        double band3Width = TIER_3_LIMIT - TIER_2_LIMIT;
-        double band4Width = TIER_4_LIMIT - TIER_3_LIMIT;
-        double band5Width = TIER_5_LIMIT - TIER_4_LIMIT;
-        double band6Width = TIER_6_LIMIT - TIER_5_LIMIT;
+        if (chargeableIncome <= 588.0) {
 
-        if (chargeableIncome <= TIER_1_LIMIT) {
-            logger.info("[PAYE] BRANCH: <= TIER 1 ({}). All income in 0% band. PAYE=0.00", TIER_1_LIMIT);
+            // Excel:
+            // IF(Z4<=588, 0
             tax = 0.0;
 
-        } else if (chargeableIncome <= TIER_2_LIMIT) {
-            logger.info("[PAYE] BRANCH: TIER 2 (>{} and <= {}).", TIER_1_LIMIT, TIER_2_LIMIT);
+            logger.info(
+                    "[PAYE] Tier 1: Income {} <= 588. PAYE = 0.00",
+                    round(chargeableIncome)
+            );
 
-            double taxableAt5 = chargeableIncome - TIER_1_LIMIT;
-            double taxAt5 = taxableAt5 * TIER_2_RATE;
+        } else if (chargeableIncome <= 668.0) {
 
-            logger.info("[PAYE] Tier2 calc: taxable=(income - t1) = {} - {} = {}",
-                    round(chargeableIncome), TIER_1_LIMIT, round(taxableAt5));
-            logger.info("[PAYE] Tier2 tax: {} * {}% = {}", round(taxableAt5), (TIER_2_RATE * 100), round(taxAt5));
+            // Excel:
+            // (Z4 - 588) * 0.05
+            double taxableAmount = chargeableIncome - 588.0;
+            tax = taxableAmount * 0.05;
 
-            tax = taxAt5;
+            logger.info(
+                    "[PAYE] Tier 2: ({} - 588) × 5% = {}",
+                    round(chargeableIncome),
+                    round(tax)
+            );
 
-        } else if (chargeableIncome <= TIER_3_LIMIT) {
-            logger.info("[PAYE] BRANCH: TIER 3 (>{} and <= {}).", TIER_2_LIMIT, TIER_3_LIMIT);
+        } else if (chargeableIncome <= 768.0) {
 
-            double taxTier2Full = band2Width * TIER_2_RATE;
+            // Excel:
+            // 4 + (Z4 - 668) * 0.10
+            double taxableAmount = chargeableIncome - 668.0;
+            tax = 4.0 + (taxableAmount * 0.10);
 
-            double taxableAt10 = chargeableIncome - TIER_2_LIMIT;
-            double taxAt10 = taxableAt10 * TIER_3_RATE;
+            logger.info(
+                    "[PAYE] Tier 3: 4 + ({} - 668) × 10% = {}",
+                    round(chargeableIncome),
+                    round(tax)
+            );
 
-            logger.info("[PAYE] Tier2 full: {} * {}% = {}", round(band2Width), (TIER_2_RATE * 100), round(taxTier2Full));
-            logger.info("[PAYE] Tier3 calc: taxable=(income - t2) = {} - {} = {}",
-                    round(chargeableIncome), TIER_2_LIMIT, round(taxableAt10));
-            logger.info("[PAYE] Tier3 tax: {} * {}% = {}", round(taxableAt10), (TIER_3_RATE * 100), round(taxAt10));
+        } else if (chargeableIncome <= 3668.0) {
 
-            tax = taxTier2Full + taxAt10;
+            // Excel:
+            // 14 + (Z4 - 768) * 0.175
+            double taxableAmount = chargeableIncome - 768.0;
+            tax = 14.0 + (taxableAmount * 0.175);
 
-        } else if (chargeableIncome <= TIER_4_LIMIT) {
-            logger.info("[PAYE] BRANCH: TIER 4 (>{} and <= {}).", TIER_3_LIMIT, TIER_4_LIMIT);
+            logger.info(
+                    "[PAYE] Tier 4: 14 + ({} - 768) × 17.5% = {}",
+                    round(chargeableIncome),
+                    round(tax)
+            );
 
-            double taxTier2Full = band2Width * TIER_2_RATE;
-            double taxTier3Full = band3Width * TIER_3_RATE;
+        } else if (chargeableIncome <= 19668.0) {
 
-            double taxableAt175 = chargeableIncome - TIER_3_LIMIT;
-            double taxAt175 = taxableAt175 * TIER_4_RATE;
+            // Excel:
+            // 521.5 + (Z4 - 3668) * 0.25
+            double taxableAmount = chargeableIncome - 3668.0;
+            tax = 521.5 + (taxableAmount * 0.25);
 
-            logger.info("[PAYE] Tier2 full: {} * {}% = {}", round(band2Width), (TIER_2_RATE * 100), round(taxTier2Full));
-            logger.info("[PAYE] Tier3 full: {} * {}% = {}", round(band3Width), (TIER_3_RATE * 100), round(taxTier3Full));
-            logger.info("[PAYE] Tier4 calc: taxable=(income - t3) = {} - {} = {}",
-                    round(chargeableIncome), TIER_3_LIMIT, round(taxableAt175));
-            logger.info("[PAYE] Tier4 tax: {} * {}% = {}", round(taxableAt175), (TIER_4_RATE * 100), round(taxAt175));
+            logger.info(
+                    "[PAYE] Tier 5: 521.50 + ({} - 3668) × 25% = {}",
+                    round(chargeableIncome),
+                    round(tax)
+            );
 
-            tax = taxTier2Full + taxTier3Full + taxAt175;
+        } else if (chargeableIncome <= 50000.0) {
 
-        } else if (chargeableIncome <= TIER_5_LIMIT) {
-            logger.info("[PAYE] BRANCH: TIER 5 (>{} and <= {}).", TIER_4_LIMIT, TIER_5_LIMIT);
+            // Excel:
+            // 4521.5 + (Z4 - 19668) * 0.30
+            double taxableAmount = chargeableIncome - 19668.0;
+            tax = 4521.5 + (taxableAmount * 0.30);
 
-            double taxTier2Full = band2Width * TIER_2_RATE;
-            double taxTier3Full = band3Width * TIER_3_RATE;
-            double taxTier4Full = band4Width * TIER_4_RATE;
-
-            double taxableAt25 = chargeableIncome - TIER_4_LIMIT;
-            double taxAt25 = taxableAt25 * TIER_5_RATE;
-
-            logger.info("[PAYE] Tier2 full: {} * {}% = {}", round(band2Width), (TIER_2_RATE * 100), round(taxTier2Full));
-            logger.info("[PAYE] Tier3 full: {} * {}% = {}", round(band3Width), (TIER_3_RATE * 100), round(taxTier3Full));
-            logger.info("[PAYE] Tier4 full: {} * {}% = {}", round(band4Width), (TIER_4_RATE * 100), round(taxTier4Full));
-            logger.info("[PAYE] Tier5 calc: taxable=(income - t4) = {} - {} = {}",
-                    round(chargeableIncome), TIER_4_LIMIT, round(taxableAt25));
-            logger.info("[PAYE] Tier5 tax: {} * {}% = {}", round(taxableAt25), (TIER_5_RATE * 100), round(taxAt25));
-
-            tax = taxTier2Full + taxTier3Full + taxTier4Full + taxAt25;
-
-        } else if (chargeableIncome <= TIER_6_LIMIT) {
-            logger.info("[PAYE] BRANCH: TIER 6 (>{} and <= {}). 30% applies above Tier 5.", TIER_5_LIMIT, TIER_6_LIMIT);
-
-            double taxTier2Full = band2Width * TIER_2_RATE;
-            double taxTier3Full = band3Width * TIER_3_RATE;
-            double taxTier4Full = band4Width * TIER_4_RATE;
-            double taxTier5Full = band5Width * TIER_5_RATE;
-
-            double taxableAt30 = chargeableIncome - TIER_5_LIMIT;
-            double taxAt30 = taxableAt30 * TIER_6_RATE;
-
-            double baseTaxToTier5 = taxTier2Full + taxTier3Full + taxTier4Full + taxTier5Full;
-
-            logger.info("[PAYE] Base tax (Tier2..Tier5 full) = {}", round(baseTaxToTier5));
-            logger.info("[PAYE] Tier6 calc: taxable=(income - t5) = {} - {} = {}",
-                    round(chargeableIncome), TIER_5_LIMIT, round(taxableAt30));
-            logger.info("[PAYE] Tier6 tax: {} * {}% = {}", round(taxableAt30), (TIER_6_RATE * 100), round(taxAt30));
-
-            tax = baseTaxToTier5 + taxAt30;
+            logger.info(
+                    "[PAYE] Tier 6: 4521.50 + ({} - 19668) × 30% = {}",
+                    round(chargeableIncome),
+                    round(tax)
+            );
 
         } else {
-            logger.info("[PAYE] BRANCH: TIER 7 (> {}). 35% applies above Tier 6.", TIER_6_LIMIT);
 
-            double taxTier2Full = band2Width * TIER_2_RATE;
-            double taxTier3Full = band3Width * TIER_3_RATE;
-            double taxTier4Full = band4Width * TIER_4_RATE;
-            double taxTier5Full = band5Width * TIER_5_RATE;
-            double taxTier6Full = band6Width * TIER_6_RATE;
+            // Excel:
+            // 13621.1 + (Z4 - 50000) * 0.35
+            double taxableAmount = chargeableIncome - 50000.0;
+            tax = 13621.1 + (taxableAmount * 0.35);
 
-            double taxableAt35 = chargeableIncome - TIER_6_LIMIT;
-            double taxAt35 = taxableAt35 * TIER_7_RATE;
-
-            double baseTaxToTier6 = taxTier2Full + taxTier3Full + taxTier4Full + taxTier5Full + taxTier6Full;
-
-            logger.info("[PAYE] Base tax (Tier2..Tier6 full) = {}", round(baseTaxToTier6));
-            logger.info("[PAYE] Tier7 calc: taxable=(income - t6) = {} - {} = {}",
-                    round(chargeableIncome), TIER_6_LIMIT, round(taxableAt35));
-            logger.info("[PAYE] Tier7 tax: {} * {}% = {}", round(taxableAt35), (TIER_7_RATE * 100), round(taxAt35));
-
-            tax = baseTaxToTier6 + taxAt35;
+            logger.info(
+                    "[PAYE] Tier 7: 13621.10 + ({} - 50000) × 35% = {}",
+                    round(chargeableIncome),
+                    round(tax)
+            );
         }
 
-        double rounded = round(tax);
-        logger.info("[PAYE] END | rawTax={} | roundedTax={}", tax, rounded);
-        return rounded;
+        double roundedTax = round(tax);
+
+        logger.info(
+                "[PAYE] END | chargeableIncome={} | rawTax={} | roundedTax={}",
+                round(chargeableIncome),
+                tax,
+                roundedTax
+        );
+
+        return roundedTax;
     }
 
     public int calculateWorkingDaysInPeriod(LocalDate startDate, LocalDate endDate) {
