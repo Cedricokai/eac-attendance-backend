@@ -438,7 +438,9 @@ public class SecurityConfig {
                     ).authenticated();
 
                     auth.requestMatchers(
+                            "/api/it-assets",
                             "/api/it-assets/**",
+                            "/api/employee-issued-items",
                             "/api/employee-issued-items/**"
                     ).authenticated();
 
@@ -494,7 +496,7 @@ public class SecurityConfig {
                 /*
                  * Lunch and Chat endpoints are handled by static rules.
                  */
-                if (endpointPattern.startsWith("/api/lunch/") || endpointPattern.startsWith("/api/chat/") || endpointPattern.startsWith("/api/admin/chat/")) {
+                if (endpointPattern.startsWith("/api/lunch/") || endpointPattern.startsWith("/api/chat/") || endpointPattern.startsWith("/api/admin/chat/") || endpointPattern.startsWith("/api/it-assets") || endpointPattern.startsWith("/api/employee-issued-items")) {
                     continue;
                 }
 
