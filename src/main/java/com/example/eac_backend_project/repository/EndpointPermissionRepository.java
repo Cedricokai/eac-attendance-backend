@@ -1,8 +1,6 @@
 package com.example.eac_backend_project.repository;
 
 import com.example.eac_backend_project.entity.inventory.EndpointPermission;
-import com.example.eac_backend_project.entity.inventory.Role;
-import com.example.eac_backend_project.entity.inventory.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

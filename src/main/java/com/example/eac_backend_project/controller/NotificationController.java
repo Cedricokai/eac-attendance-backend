@@ -1,7 +1,7 @@
 package com.example.eac_backend_project.controller;
 
 import com.example.eac_backend_project.Service.email.EmailNotificationService;
-import com.example.eac_backend_project.entity.EmailNotification;
+import com.example.eac_backend_project.entity.email.EmailNotification;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;

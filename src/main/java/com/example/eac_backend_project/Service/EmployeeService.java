@@ -141,6 +141,8 @@ public class EmployeeService {
 
         // --- Department & Others ---
         employee.setDepartment(employeeDTO.getDepartment());
+        employee.setActive(employeeDTO.getActive() != null ? employeeDTO.getActive() : true);
+        employee.setIsSupervisor(employeeDTO.getIsSupervisor() != null ? employeeDTO.getIsSupervisor() : false);
 
         // --- Tax & SSNIT Flags ---
         employee.setApplyWithholdingTax(employeeDTO.getApplyWithholdingTax() != null ? employeeDTO.getApplyWithholdingTax() : false);
@@ -311,6 +313,7 @@ public class EmployeeService {
         if (employee.getOtherAllowance() == null) employee.setOtherAllowance(0.0);
         if (employee.getNssAllowance() == null) employee.setNssAllowance(0.0);
         if (employee.getPhone() == null) employee.setPhone("");
+        if (employee.getActive() == null) employee.setActive(true);
         if (employee.getEmail() == null || employee.getEmail().isBlank()) {
             String firstName = employee.getFirstName() != null ? employee.getFirstName().toLowerCase() : "employee";
             String lastName = employee.getLastName() != null ? employee.getLastName().toLowerCase() : "user";
@@ -538,10 +541,31 @@ public class EmployeeService {
                 existingEmployee.setMinimumRate(employeeDTO.getMinimumRate());
             }
 
+            if (existingEmployee.getMinimumRate() != null && existingEmployee.getMinimumRate() > 0) {
+                existingEmployee.setHourlyRate(existingEmployee.getMinimumRate());
+                existingEmployee.setOvertimeRate(existingEmployee.getMinimumRate() * 1.5);
+            } else if (existingEmployee.getBasicSalary() != null && existingEmployee.getBasicSalary() > 0) {
+                double computedRate = Math.round((existingEmployee.getBasicSalary() / 160.0) * 100.0) / 100.0;
+                existingEmployee.setMinimumRate(computedRate);
+                existingEmployee.setHourlyRate(computedRate);
+                existingEmployee.setOvertimeRate(Math.round((computedRate * 1.5) * 100.0) / 100.0);
+            }
+
+            if (existingEmployee.getActive() == null) {
+                existingEmployee.setActive(true);
+            }
+
             Employee savedEmployee = employeeRepository.save(existingEmployee);
 
             if (employeeDTO.getEmail() != null && !oldEmail.equals(employeeDTO.getEmail())) {
                 updateUserForEmployee(savedEmployee, oldEmail);
+            } else {
+                userRepository.findByEmail(savedEmployee.getEmail()).ifPresent(u -> {
+                    if (u.getEmployee() == null || !u.getEmployee().getId().equals(savedEmployee.getId())) {
+                        u.setEmployee(savedEmployee);
+                        userRepository.save(u);
+                    }
+                });
             }
 
             // LOG: Employee updated via DTO
@@ -586,6 +610,12 @@ public class EmployeeService {
             }
             if (userRepository.findByEmail(employee.getEmail()).isPresent()) {
                 System.out.println("User already exists for email: " + employee.getEmail());
+                User existingUser = userRepository.findByEmail(employee.getEmail()).get();
+                if (existingUser.getEmployee() == null || !existingUser.getEmployee().getId().equals(employee.getId())) {
+                    existingUser.setEmployee(employee);
+                    userRepository.save(existingUser);
+                    System.out.println("Linked employee " + employee.getId() + " to user: " + existingUser.getUserName());
+                }
                 return;
             }
             String username = generateUsername(

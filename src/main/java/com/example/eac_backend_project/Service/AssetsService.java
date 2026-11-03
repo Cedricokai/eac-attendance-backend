@@ -1,7 +1,7 @@
 package com.example.eac_backend_project.Service;
 
 
-import com.example.eac_backend_project.config.Assets;
+import com.example.eac_backend_project.entity.inventory.Assets;
 import com.example.eac_backend_project.entity.inventory.ActionType;
 import com.example.eac_backend_project.entity.inventory.Outgoing;
 import com.example.eac_backend_project.entity.inventory.ProductHistory;

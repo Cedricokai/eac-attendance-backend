@@ -40,6 +40,7 @@ public class Vehicles {
     @Column(name = "driver")
     private String assignedDriver;
 
+    @Column(name = "\"year\"")
     private Integer year;
     private String color;
     private Double currentMileage;

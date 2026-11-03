@@ -3,7 +3,7 @@ package com.example.eac_backend_project.Service.email;
 import com.example.eac_backend_project.Exceptions.ResourceNotFoundException;
 import com.example.eac_backend_project.Service.settings.SettingsService;
 import com.example.eac_backend_project.config.EmailTemplatesConfig;
-import com.example.eac_backend_project.entity.EmailNotification;
+import com.example.eac_backend_project.entity.email.EmailNotification;
 import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.Leave;
 import com.example.eac_backend_project.repository.EmployeeRepository;

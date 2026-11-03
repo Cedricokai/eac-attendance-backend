@@ -158,6 +158,11 @@ public class PageController {
                 .map(a -> a.getAuthority())
                 .toList();
 
+        if (userRoles.contains("ROLE_ADMIN")) {
+            result.put("allowed", true);
+            return ResponseEntity.ok(result);
+        }
+
         Optional<Page> pageOpt = pageRepository.findByPath(path);
         if (pageOpt.isEmpty()) {
             result.put("allowed", true); // unknown pages allowed
