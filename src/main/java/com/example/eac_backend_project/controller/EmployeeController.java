@@ -22,7 +22,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/employee")
+@RequestMapping({"/api/employee", "/api/employees"})
 public class EmployeeController {
 
     @Autowired

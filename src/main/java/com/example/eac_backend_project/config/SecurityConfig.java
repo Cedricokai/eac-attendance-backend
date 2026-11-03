@@ -150,6 +150,19 @@ public class SecurityConfig {
                             "/ONEPASS/recent-attempts"
                     ).permitAll();
 
+                    auth.requestMatchers(
+                            "/h2-console/**",
+                            "/ws/**",
+                            "/api/chat/attachments/**"
+                    ).permitAll();
+
+                    /*
+                     * Admin Chat Monitoring / Auditing endpoints
+                     */
+                    auth.requestMatchers(
+                            "/api/admin/chat/**"
+                    ).hasAnyRole("ADMIN");
+
                     /*
                      * Public leave approval links.
                      */
@@ -420,6 +433,15 @@ public class SecurityConfig {
                             "/api/payroll/**"
                     ).authenticated();
 
+                    auth.requestMatchers(
+                            "/api/file-manager/**"
+                    ).authenticated();
+
+                    auth.requestMatchers(
+                            "/api/it-assets/**",
+                            "/api/employee-issued-items/**"
+                    ).authenticated();
+
                     /*
                      * Load database-configured endpoint permissions.
                      */
@@ -445,7 +467,8 @@ public class SecurityConfig {
 
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable);
+                .logout(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 
         return http.build();
     }
@@ -469,9 +492,9 @@ public class SecurityConfig {
                 }
 
                 /*
-                 * Lunch endpoints are handled by the static rules above.
+                 * Lunch and Chat endpoints are handled by static rules.
                  */
-                if (endpointPattern.startsWith("/api/lunch/")) {
+                if (endpointPattern.startsWith("/api/lunch/") || endpointPattern.startsWith("/api/chat/") || endpointPattern.startsWith("/api/admin/chat/")) {
                     continue;
                 }
 

@@ -1,7 +1,7 @@
 package com.example.eac_backend_project.repository;
 
 
-import com.example.eac_backend_project.config.Assets;
+import com.example.eac_backend_project.entity.inventory.Assets;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

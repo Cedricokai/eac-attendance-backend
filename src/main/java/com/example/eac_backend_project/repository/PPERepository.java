@@ -1,6 +1,6 @@
 package com.example.eac_backend_project.repository;
 
-import com.example.eac_backend_project.entity.PPE;
+import com.example.eac_backend_project.entity.inventory.PPE;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

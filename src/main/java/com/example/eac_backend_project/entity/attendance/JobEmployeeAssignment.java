@@ -30,6 +30,7 @@ public class JobEmployeeAssignment {
     @Column(name = "temp_ot_rate")
     private Double tempOtRate;          // billing OT rate (per hour)
 
+    @Builder.Default
     @Column(name = "is_supervisor")
     private Boolean isSupervisor = false;
 

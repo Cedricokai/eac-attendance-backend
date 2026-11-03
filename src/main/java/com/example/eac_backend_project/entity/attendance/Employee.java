@@ -15,6 +15,7 @@ import java.util.List;
 
 @Getter
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 @Entity
 @Table(name = "employee")
@@ -114,11 +115,6 @@ public class Employee {
     private Boolean usePositionRate = false;
     private String jobGrade;
 
-    public Employee() {
-        // Initialize default values
-        initializeDefaultValues();
-    }
-
     // ================= Allowance Breakdown =================
     private Double rentAllowance = 0.0;
     private Double transportAllowance = 0.0;
@@ -203,6 +199,7 @@ public class Employee {
         if (this.clothingAllowance == null) this.clothingAllowance = 0.0;
         if (this.otherAllowance == null) this.otherAllowance = 0.0;
         if (this.isSupervisor == null) this.isSupervisor = false;
+        if (this.active == null) this.active = true;
     }
 
     public Boolean getActive() {

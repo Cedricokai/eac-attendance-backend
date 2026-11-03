@@ -1,7 +1,7 @@
 package com.example.eac_backend_project.repository.email;
 
 
-import com.example.eac_backend_project.entity.EmailNotification;
+import com.example.eac_backend_project.entity.email.EmailNotification;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

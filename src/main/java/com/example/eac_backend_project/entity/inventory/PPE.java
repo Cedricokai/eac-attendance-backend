@@ -1,4 +1,4 @@
-package com.example.eac_backend_project.entity;
+package com.example.eac_backend_project.entity.inventory;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;

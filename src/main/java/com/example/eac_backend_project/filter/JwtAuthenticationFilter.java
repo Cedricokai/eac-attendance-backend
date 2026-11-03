@@ -40,24 +40,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         logger.debug("JWT filter processing request: " + requestURI);
 
+        String token = null;
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            token = authorizationHeader.substring(7).trim();
+        } else if (request.getParameter("token") != null && !request.getParameter("token").isBlank()) {
+            token = request.getParameter("token").trim();
+        }
+
         /*
          * No token was supplied.
          *
          * Do not immediately return a 401 here because public endpoints
          * must still be allowed to continue through Spring Security.
          */
-        if (authorizationHeader == null
-                || !authorizationHeader.startsWith("Bearer ")) {
-
+        if (token == null || token.isEmpty()) {
             logger.debug(
-                    "No Bearer token found for request: " + requestURI
+                    "No Bearer token or token parameter found for request: " + requestURI
             );
 
             filterChain.doFilter(request, response);
             return;
         }
-
-        String token = authorizationHeader.substring(7).trim();
 
         if (token.isEmpty()) {
             logger.warn(

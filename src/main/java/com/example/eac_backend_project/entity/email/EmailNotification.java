@@ -1,4 +1,4 @@
-package com.example.eac_backend_project.entity;
+package com.example.eac_backend_project.entity.email;
 
 import com.example.eac_backend_project.entity.attendance.Employee;
 import com.example.eac_backend_project.entity.attendance.Leave;

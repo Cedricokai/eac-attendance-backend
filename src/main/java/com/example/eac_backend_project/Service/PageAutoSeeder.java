@@ -39,6 +39,7 @@ public class PageAutoSeeder {
                 // Employee Dashboard & Profile
                 new PageDefinition("Employee Dashboard", "/employeeDashboard", "Main employee dashboard", "LayoutDashboard", false, 10, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_HR", "ROLE_ADMIN", "ROLE_INVENTORY", "ROLE_TRANSPORT"),
                 new PageDefinition("Employee Profile", "/profile/:id", "Employee profile details", "UserCircle", false, 11, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_HR", "ROLE_ADMIN"),
+                new PageDefinition("My Assets", "/my-assets", "View IT devices and company items issued to you and their return status", "Laptop", false, 12, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_HR", "ROLE_ADMIN", "ROLE_INVENTORY", "ROLE_TRANSPORT", "ROLE_CUSTOMER", "ROLE_USER"),
 
                 // Attendance Module
                 new PageDefinition("Attendance", "/attendance", "Attendance management", "CalendarDays", false, 20, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_HR", "ROLE_ADMIN"),
@@ -68,6 +69,7 @@ public class PageAutoSeeder {
                 new PageDefinition("Inventory Request", "/InventoryRequest", "Submit inventory request", "ShoppingCart", false, 54, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_HR", "ROLE_ADMIN", "ROLE_INVENTORY"),
                 new PageDefinition("Product Request Form", "/product-request-form", "Submit product request", "ClipboardList", false, 55, "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_ADMIN"),
                 new PageDefinition("PPE Management", "/ppe", "Personal Protective Equipment", "Shield", false, 56, "ROLE_INVENTORY", "ROLE_ADMIN"),
+                new PageDefinition("Asset Management", "/assetManagement", "Track company IT devices, laptops, monitors, printers, employee holdings, and returns", "Laptop", false, 57, "ROLE_ADMIN"),
 
                 // Procurement
                 new PageDefinition("Procurement Review", "/procurementManagerReview", "Procurement manager review", "ClipboardCheck", false, 60, "ROLE_PROCUREMENT_OFFICER", "ROLE_ADMIN"),
@@ -98,36 +100,37 @@ public class PageAutoSeeder {
                 new PageDefinition("Page Permissions", "/pagePermissionManagement", "Page permission management", "ShieldCheck", false, 102, "ROLE_ADMIN"),
                 new PageDefinition("Settings", "/settingspage", "System settings", "Settings", false, 103, "ROLE_ADMIN"),
                 new PageDefinition("History", "/history", "System history log", "History", false, 104, "ROLE_ADMIN"),
+                new PageDefinition("File Management", "/fileManager", "Enterprise file and document management suite", "FolderGit2", false, 110, "ROLE_ADMIN", "ROLE_HR", "ROLE_EMPLOYEE", "ROLE_SUPERVISOR", "ROLE_PLANNER", "ROLE_INVENTORY", "ROLE_TRANSPORT"),
                 new PageDefinition("Search", "/search", "Global search", "Search", false, 105, "ROLE_ADMIN", "ROLE_HR", "ROLE_SUPERVISOR")
         );
 
         for (PageDefinition definition : pageDefinitions) {
-            // Check if page already exists
-            if (!pageRepository.findByPath(definition.getPath()).isPresent()) {
-                Page page = new Page();
+            Page page = pageRepository.findByPath(definition.getPath()).orElseGet(Page::new);
+            if (page.getId() == null) {
                 page.setName(definition.getName());
                 page.setPath(definition.getPath());
                 page.setDescription(definition.getDescription());
                 page.setIconName(definition.getIconName());
                 page.setIsPublic(definition.isPublic());
                 page.setDisplayOrder(definition.getOrder());
-
-                // Assign roles
-                Set<Role> roles = new HashSet<>();
-                for (String roleName : definition.getRoles()) {
-                    if (roleName.equals("PUBLIC")) {
-                        continue; // Public pages don't need role assignment
-                    }
-
-                    String formattedRoleName = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
-                    roleRepository.findByName(formattedRoleName)
-                            .ifPresent(roles::add);
-                }
-                page.setRoles(roles);
-
-                pageRepository.save(page);
-                System.out.println("Created page: " + definition.getName() + " (" + definition.getPath() + ")");
             }
+
+            // Assign roles
+            Set<Role> roles = (page.getRoles() != null && !page.getRoles().isEmpty()) ? page.getRoles() : new HashSet<>();
+            for (String roleName : definition.getRoles()) {
+                if (roleName.equals("PUBLIC")) {
+                    continue; // Public pages don't need role assignment
+                }
+
+                String formattedRoleName = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+                Role role = roleRepository.findByName(formattedRoleName)
+                        .orElseGet(() -> roleRepository.save(new Role(formattedRoleName, true)));
+                roles.add(role);
+            }
+            page.setRoles(roles);
+
+            pageRepository.save(page);
+            System.out.println("Configured page: " + definition.getName() + " (" + definition.getPath() + ")");
         }
 
         System.out.println("=== Page auto-seeding completed ===");

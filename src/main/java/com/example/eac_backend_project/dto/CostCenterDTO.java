@@ -41,6 +41,7 @@ public class CostCenterDTO {
     @Positive(message = "Budget must be positive")
     private Double budget;
 
+    @Builder.Default
     private Double spentAmount = 0.0;
 
     @JsonFormat(pattern = "yyyy-MM-dd")

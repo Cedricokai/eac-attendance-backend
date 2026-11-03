@@ -337,4 +337,17 @@ public class SettingsController {
         Set<Long> skipCategoryIds = settingsService.getAllCategoryIdsToSkipForAutoAbsent();
         return ResponseEntity.ok(Map.of("skipCategoryIds", skipCategoryIds));
     }
+
+    @GetMapping("/departments")
+    public ResponseEntity<List<String>> getDepartments() {
+        List<String> departments = List.of(
+                "Planning & Engineering",
+                "Operations",
+                "Technical Services",
+                "Inventory & Logistics",
+                "Human Resources",
+                "Administration"
+        );
+        return ResponseEntity.ok(departments);
+    }
 }

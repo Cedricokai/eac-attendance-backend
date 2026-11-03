@@ -19,26 +19,27 @@ import java.util.List;
 public class BiometricExcelParser {
 
     public List<BiometricRecordDTO> parseExcel(MultipartFile file) throws IOException {
-        Workbook workbook = new XSSFWorkbook(file.getInputStream());
-        Sheet sheet = workbook.getSheetAt(0);
-
         List<BiometricRecordDTO> records = new ArrayList<>();
 
-        for (Row row : sheet) {
-            if (row.getRowNum() == 0) continue; // Skip header
+        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
 
-            BiometricRecordDTO record = new BiometricRecordDTO();
-            record.setAction(getStringValue(row.getCell(0)));
-            record.setAuthenticationMethod(getStringValue(row.getCell(1)));
-            record.setEmployeeName(getStringValue(row.getCell(2)));
-            record.setEmployeeId((long) row.getCell(3).getNumericCellValue());
+            for (Row row : sheet) {
+                if (row.getRowNum() == 0) continue; // Skip header
 
-            // Parse timestamp (format: "2025/05/01-11:57:37")
-            String timestampStr = getStringValue(row.getCell(4));
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd-HH:mm:ss");
-            record.setTimestamp(LocalDateTime.parse(timestampStr, formatter));
+                BiometricRecordDTO record = new BiometricRecordDTO();
+                record.setAction(getStringValue(row.getCell(0)));
+                record.setAuthenticationMethod(getStringValue(row.getCell(1)));
+                record.setEmployeeName(getStringValue(row.getCell(2)));
+                record.setEmployeeId((long) row.getCell(3).getNumericCellValue());
 
-            records.add(record);
+                // Parse timestamp (format: "2025/05/01-11:57:37")
+                String timestampStr = getStringValue(row.getCell(4));
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd-HH:mm:ss");
+                record.setTimestamp(LocalDateTime.parse(timestampStr, formatter));
+
+                records.add(record);
+            }
         }
 
         return records;

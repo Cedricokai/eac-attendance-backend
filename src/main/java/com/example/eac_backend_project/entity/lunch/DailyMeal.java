@@ -1,13 +1,11 @@
 package com.example.eac_backend_project.entity.lunch;
 
-import com.example.eac_backend_project.entity.attendance.Employee;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "daily_meal")

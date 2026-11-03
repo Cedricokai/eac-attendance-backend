@@ -1,8 +1,29 @@
 HELP.md
 target/
+*.class
+*.db
+*.mv.db
+*.trace.db
+*.lock.db
+*.log
+uploads/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
+*.class
+*.db
+*.mv.db
+*.trace.db
+*.lock.db
+*.log
+uploads/
 !**/src/test/**/target/
+*.class
+*.db
+*.mv.db
+*.trace.db
+*.lock.db
+*.log
+uploads/
 
 ### STS ###
 .apt_generated

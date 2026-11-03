@@ -2,7 +2,7 @@ package com.example.eac_backend_project.controller;
 
 
 import com.example.eac_backend_project.Service.AssetsService;
-import com.example.eac_backend_project.config.Assets;
+import com.example.eac_backend_project.entity.inventory.Assets;
 import com.example.eac_backend_project.entity.inventory.MoveRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
