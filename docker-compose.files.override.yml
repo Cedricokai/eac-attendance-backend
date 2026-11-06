@@ -1,0 +1,30 @@
+# Merge with your existing Synology stack. Does not create/replace its MySQL service.
+services:
+  eac-system:
+    build:
+      dockerfile: Dockerfile.files
+    environment:
+      APP_FILES_STORAGE_ROOT: /var/lib/eac/files
+      APP_FILES_BACKUP_ROOT: /var/lib/eac/file-backups
+      APP_FILES_COLLABORATION_KEY: ${APP_FILES_COLLABORATION_KEY:?Set a private collaboration key}
+      APP_FRONTEND_BASE_URL: ${EAC_FRONTEND_URL:?Set the existing HTTPS frontend URL}
+    volumes:
+      - ${EAC_FILES_ROOT:-/volume1/docker/eac/files}:/var/lib/eac/files
+      - ${EAC_FILE_BACKUPS_ROOT:-/volume1/backups/eac/file-suite}:/var/lib/eac/file-backups
+  eac-collaboration:
+    build:
+      context: ${EAC_FRONTEND_PATH:?Set the frontend source directory}
+      dockerfile: collaboration/Dockerfile
+    environment:
+      EAC_BACKEND_URL: http://eac-system:8080
+      EAC_COLLABORATION_HOST: 0.0.0.0
+      EAC_COLLABORATION_ROOT: /var/lib/eac/collaboration
+      EAC_COLLABORATION_ORIGINS: ${EAC_FRONTEND_URL:?Set the existing HTTPS frontend URL}
+      APP_FILES_COLLABORATION_KEY: ${APP_FILES_COLLABORATION_KEY:?Set a private collaboration key}
+    ports:
+      - "127.0.0.1:1234:1234"
+    volumes:
+      - ${EAC_COLLABORATION_ROOT:-/volume1/docker/eac/collaboration}:/var/lib/eac/collaboration
+    networks:
+      - eac-network
+    restart: unless-stopped

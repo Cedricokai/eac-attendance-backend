@@ -23,6 +23,7 @@ public class VehicleController {
         try {
             VehicleDTO savedVehicle = vehicleService.createVehicle(vehicleDTO);
             return ResponseEntity.ok(savedVehicle);
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -51,6 +52,7 @@ public class VehicleController {
             return (vehicle != null)
                     ? ResponseEntity.ok(vehicle)
                     : ResponseEntity.notFound().build();
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

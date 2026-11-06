@@ -1,0 +1,22 @@
+{
+  "name": "EAC Sheet Access",
+  "guid": "asc.{B785C60D-E5F1-48D1-A624-2BF8EAC50001}",
+  "version": "11.0.0",
+  "minVersion": "10.0.0",
+  "variations": [{
+    "description": "Manage employee access to individual sheets",
+    "url": "index.html?v=11",
+    "icons": ["icon.svg"],
+    "isViewer": true,
+    "EditorsSupport": ["cell"],
+    "isVisual": false,
+    "isModal": false,
+    "isInsideMode": false,
+    "isDisplayedInViewer": true,
+    "events": ["onContextMenuShow"],
+    "initDataType": "none",
+    "initData": "",
+    "buttons": [],
+    "size": [340, 600]
+  }]
+}

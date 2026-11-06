@@ -8,7 +8,21 @@ import java.util.List;
 
 @Data
 public class VehicleDTO {
+    private java.time.Instant archivedAt;
     private Long id;
+    private String make;
+    private String model;
+    private String category;
+    private String engineNumber;
+    private String transmission;
+    private String ownershipType;
+    private LocalDate acquisitionDate;
+    private String department;
+    private String project;
+    private Long driverId;
+    private Double initialOdometer;
+    private String operationalStatus;
+    private Long primaryImageFileId;
     private String name;
     private String type;
     private String dvla;

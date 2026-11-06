@@ -31,6 +31,11 @@ public class PageController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.example.eac_backend_project.communication.CommunicationAccess communicationAccess;
+    @Autowired
+    private com.example.eac_backend_project.transport.TransportAccess transportAccess;
+
     @GetMapping("/my-pages")
     public ResponseEntity<List<PageDTO>> getMyPages(Authentication auth) {
         return ResponseEntity.ok(pageService.getAccessiblePages(auth));
@@ -150,6 +155,36 @@ public class PageController {
         if (auth == null) {
             result.put("message", "Not authenticated");
             return ResponseEntity.status(401).body(result);
+        }
+
+        if (path.startsWith("/transport/") || java.util.Set.of("/vehicles","/drivers","/fuel","/maintenance","/transportReports","/usersmanagement","/admindashboard").stream().anyMatch(p -> p.equalsIgnoreCase(path))) {
+            try {
+                transportAccess.requireEntry();
+                if (path.equals("/transport/settings")) transportAccess.require("TRANSPORT_SETTINGS");
+                if (path.equalsIgnoreCase("/usersmanagement")) transportAccess.require("TRANSPORT_SETTINGS");
+                if (path.equalsIgnoreCase("/transportReports")) transportAccess.require("TRANSPORT_REPORTS");
+                result.put("allowed", true);
+                return ResponseEntity.ok(result);
+            } catch (org.springframework.web.server.ResponseStatusException denied) {
+                result.put("allowed", false);
+                result.put("message", denied.getReason());
+                return ResponseEntity.status(denied.getStatusCode()).body(result);
+            }
+        }
+        // Communication administration follows its action-specific grants.
+        String communicationCode = Map.of(
+            "/admin/communication-settings", "COMMUNICATION_POLICY_MANAGE",
+            "/admin/communications/backups", "COMMUNICATION_BACKUP_MANAGE",
+            "/admin/communications/recovery", "COMMUNICATION_RECOVERY_MANAGE",
+            "/admin/communications/groups", "COMMUNICATION_GROUP_MANAGE",
+            "/admin/communications/audit", "COMMUNICATION_ADMIN",
+            "/admin/communications", "COMMUNICATION_VIEW_ALL"
+        ).get(path);
+        if (communicationCode != null) {
+            boolean allowed = communicationAccess.allows(communicationAccess.account(), communicationCode);
+            result.put("allowed", allowed);
+            if (!allowed) result.put("message", "Communication permission required");
+            return ResponseEntity.status(allowed ? 200 : 403).body(result);
         }
 
         String username = auth.getName();

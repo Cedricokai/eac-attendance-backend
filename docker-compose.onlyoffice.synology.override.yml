@@ -1,0 +1,63 @@
+# Merge with the existing Synology compose file; do not create a second database.
+services:
+  eac-system:
+    platform: linux/amd64
+    build:
+      context: ${EAC_BACKEND_SOURCE:?Set the existing backend checkout directory}
+      dockerfile: Dockerfile.files
+    environment:
+      ONLYOFFICE_ENABLED: "true"
+      ONLYOFFICE_BROWSER_URL: ${EAC_ONLYOFFICE_PUBLIC_URL:?Set the HTTPS Office reverse-proxy origin}
+      ONLYOFFICE_SERVER_URL: http://eac-onlyoffice
+      ONLYOFFICE_CONNECTOR_URL: http://eac-system:8080
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Set a separate private Office secret}
+      ONLYOFFICE_PROTECTED_RANGES_VERIFIED: ${ONLYOFFICE_PROTECTED_RANGES_VERIFIED:-false}
+      APP_COMMUNICATION_DEMO_ENABLED: "false"
+      APP_FRONTEND_BASE_URL: ${EAC_FRONTEND_URL:?Set the existing HTTPS EAC frontend origin}
+      APP_FILES_PASSWORD_KEY: ${APP_FILES_PASSWORD_KEY:?Set the stable document-password encryption key}
+      APP_FILES_STORAGE_ROOT: /var/lib/eac/files
+      APP_FILES_BACKUP_ROOT: /var/lib/eac/file-backups
+    volumes:
+      - ${EAC_FILES_ROOT:?Set the EXISTING canonical file-storage directory}:/var/lib/eac/files
+      - ${EAC_FILE_BACKUPS_ROOT:?Set the EXISTING file-backup directory}:/var/lib/eac/file-backups
+  eac-onlyoffice:
+    platform: linux/amd64
+    build:
+      context: ${EAC_BACKEND_SOURCE:?Set the existing backend checkout directory}
+      dockerfile: deploy/onlyoffice/Dockerfile
+    environment:
+      EAC_OFFICE_BACKEND_HOST: eac-system
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Set a separate private Office secret}
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "false"
+      WOPI_ENABLED: "false"
+      ALLOW_PRIVATE_IP_ADDRESS: "false"
+      ALLOW_META_IP_ADDRESS: "false"
+    ports:
+      - "127.0.0.1:${EAC_ONLYOFFICE_LOCAL_PORT:-8082}:80"
+    networks: [eac-network]
+    depends_on: [eac-system]
+    volumes:
+      - eac_office_data:/var/www/onlyoffice/Data
+      - eac_office_lib:/var/lib/onlyoffice
+      - eac_office_postgres:/var/lib/postgresql
+      - eac_office_logs:/var/log/onlyoffice
+    shm_size: 1gb
+    mem_limit: 5g
+    cpus: 2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost/healthcheck"]
+      interval: 15s
+      timeout: 10s
+      start_period: 120s
+      retries: 20
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+volumes:
+  eac_office_data:
+  eac_office_lib:
+  eac_office_postgres:
+  eac_office_logs:

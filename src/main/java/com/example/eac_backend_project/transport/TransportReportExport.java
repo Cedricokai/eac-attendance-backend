@@ -1,0 +1,29 @@
+package com.example.eac_backend_project.transport;
+
+import org.springframework.stereotype.Service;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
+import java.util.*;
+import java.util.List;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import static com.example.eac_backend_project.transport.TransportAccess.fail;
+
+@Service
+public class TransportReportExport {
+ @org.springframework.beans.factory.annotation.Value("${app.transport.report-font:}") private String reportFont="";
+ private BaseFont pdfFont(Map<String,Object> report)throws IOException,DocumentException {List<String> candidates=new ArrayList<>();if(reportFont!=null&&!reportFont.isBlank())candidates.add(reportFont);candidates.addAll(List.of("C:/Windows/Fonts/arial.ttf","/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf","/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"));BaseFont selected=null;for(String path:candidates)if(java.nio.file.Files.isRegularFile(java.nio.file.Path.of(path))){selected=BaseFont.createFont(path,BaseFont.IDENTITY_H,BaseFont.EMBEDDED);break;}if(selected==null)selected=BaseFont.createFont(BaseFont.HELVETICA,BaseFont.WINANSI,false);BaseFont font=selected;if(report.toString().codePoints().anyMatch(code->!Character.isWhitespace(code)&&!font.charExists(code)))throw fail(422,"The PDF font cannot display every character in this report. Ask an administrator to configure a compatible Unicode font, or export Excel/CSV.");return selected;}
+ public record Export(byte[] bytes,String mediaType,String extension){}
+ @SuppressWarnings("unchecked") public Export generate(Map<String,Object> report,String format)throws IOException {
+  var rows=(List<Map<String,Object>>)report.get("rows");var columns=(List<Map<String,String>>)report.get("columns");String title=Objects.toString(report.get("title"));
+  try(var out=new ByteArrayOutputStream()){
+   if("csv".equalsIgnoreCase(format)){StringBuilder csv=new StringBuilder("\uFEFF");csv.append(String.join(",",columns.stream().map(c->quoted(c.get("label"))).toList())).append("\r\n");for(var row:rows)csv.append(String.join(",",columns.stream().map(c->{Object value=row.get(c.get("key"));return quoted(value==null?"":safeCell(value));}).toList())).append("\r\n");return new Export(csv.toString().getBytes(StandardCharsets.UTF_8),"text/csv;charset=UTF-8","csv");}
+   if("xlsx".equalsIgnoreCase(format)){try(var workbook=new XSSFWorkbook()){var sheet=workbook.createSheet("Transport report");var header=sheet.createRow(0);var style=workbook.createCellStyle();var font=workbook.createFont();font.setBold(true);style.setFont(font);for(int i=0;i<columns.size();i++){var cell=header.createCell(i);cell.setCellValue(columns.get(i).get("label"));cell.setCellStyle(style);sheet.setColumnWidth(i,24*256);}for(int index=0;index<rows.size();index++){var row=sheet.createRow(index+1);var values=rows.get(index);for(int col=0;col<columns.size();col++){var value=values.get(columns.get(col).get("key"));var cell=row.createCell(col);if(value instanceof Number number&&(!(number instanceof java.math.BigDecimal decimal)||decimal.precision()<=15))cell.setCellValue(number.doubleValue());else if(value!=null)cell.setCellValue(Objects.toString(value));}}sheet.createFreezePane(0,1);if(!rows.isEmpty())sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0,rows.size(),0,columns.size()-1));var info=workbook.createSheet("Report information");info.createRow(0).createCell(0).setCellValue(title);info.createRow(1).createCell(0).setCellValue(Objects.toString(report.get("filters")));info.createRow(2).createCell(0).setCellValue(Objects.toString(report.get("notes")));info.setColumnWidth(0,100*256);workbook.write(out);}return new Export(out.toByteArray(),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","xlsx");}
+   if("pdf".equalsIgnoreCase(format)){var base=pdfFont(report);var document=new Document(PageSize.A4,36,36,40,40);var writer=PdfWriter.getInstance(document,out);writer.setPageEvent(new PdfPageEventHelper(){@Override public void onEndPage(PdfWriter current,Document page){ColumnText.showTextAligned(current.getDirectContent(),Element.ALIGN_CENTER,new Phrase("Page "+current.getPageNumber(),new Font(base,8)),(page.left()+page.right())/2,22,0);}});document.open();document.addCreator("EAC Transport");document.addTitle(title);document.add(new Paragraph(title,new Font(base,17,Font.BOLD)));document.add(new Paragraph("Generated: "+report.get("generatedAt"),new Font(base,9)));document.add(new Paragraph("Filters: "+report.get("filters"),new Font(base,9)));document.add(new Paragraph(Objects.toString(report.get("notes")),new Font(base,9)));document.add(new Paragraph("Records: "+rows.size()));int index=0;for(var row:rows){document.add(new Paragraph("Record "+(++index),new Font(base,11,Font.BOLD)));var table=new PdfPTable(new float[]{1,2});table.setWidthPercentage(100);table.setSplitLate(false);table.setSpacingBefore(8);table.setSpacingAfter(12);for(var column:columns){var label=new PdfPCell(new Phrase(column.get("label"),new Font(base,9,Font.BOLD)));label.setPadding(6);table.addCell(label);var value=new PdfPCell(new Phrase(Objects.toString(row.get(column.get("key")),"Not Recorded"),new Font(base,9)));value.setPadding(6);table.addCell(value);}document.add(table);}document.close();return new Export(out.toByteArray(),"application/pdf","pdf");}
+   throw fail(400,"Choose CSV, XLSX or PDF export");
+  }catch(DocumentException exception){throw new IOException("Report PDF could not be generated",exception);}
+ }
+ private static String safeCell(Object value){String text=Objects.toString(value);if(!(value instanceof Number)&&!text.stripLeading().isEmpty()&&"=+@-".indexOf(text.stripLeading().charAt(0))>=0)return "'"+text;return text;}
+ private static String quoted(String value){return "\""+value.replace("\"","\"\"")+"\"";}
+}

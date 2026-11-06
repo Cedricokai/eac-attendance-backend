@@ -19,8 +19,12 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@org.springframework.transaction.annotation.Transactional(rollbackFor=java.io.IOException.class)
 public class AttachmentService {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.example.eac_backend_project.transport.TransportCoreService transport;
+    @org.springframework.beans.factory.annotation.Autowired private com.example.eac_backend_project.transport.TransportAccess access;
+    @org.springframework.beans.factory.annotation.Autowired private com.example.eac_backend_project.files.TransportManagedFiles managed;
     private final AttachmentRepository attachmentRepository;
     private final VehicleRepository vehicleRepository;
     private final Path fileStorageLocation;
@@ -39,9 +43,12 @@ public class AttachmentService {
     }
 
     public List<AttachmentDTO> uploadFiles(MultipartFile[] files, Long vehicleId) throws IOException {
+        access.require("TRANSPORT_MANAGE_VEHICLES");
+        if(files.length>10)throw com.example.eac_backend_project.transport.TransportAccess.fail(400,"Upload at most ten attachments at once");
         Vehicles vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found with id: " + vehicleId));
 
+        transport.vehicle(vehicleId);
         return Arrays.stream(files)
                 .map(file -> {
                     try {
@@ -54,24 +61,16 @@ public class AttachmentService {
     }
 
     private AttachmentDTO saveFile(MultipartFile file, Vehicles vehicle) throws IOException {
-        // Generate unique filename to avoid conflicts
-        String originalFileName = file.getOriginalFilename();
-        String fileExtension = "";
-        if (originalFileName != null && originalFileName.contains(".")) {
-            fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
-        }
-        String fileName = System.currentTimeMillis() + "_" + vehicle.getDvla() + "_" + originalFileName;
-        Path targetLocation = this.fileStorageLocation.resolve(fileName);
-
-        // Copy file to target location with REPLACE_EXISTING option
-        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-
+        var checked=com.example.eac_backend_project.transport.TransportFileValidation.validate(file,false,true);
+        var managedFile=managed.upload(com.example.eac_backend_project.transport.TransportFileValidation.part(checked));
+        String originalFileName=checked.name();
         // Save attachment info to database
         Attachment attachment = new Attachment();
         attachment.setFileName(originalFileName);
         attachment.setFileSize(file.getSize());
-        attachment.setFileType(file.getContentType());
-        attachment.setFilePath(targetLocation.toString());
+        attachment.setFileType(checked.mediaType());
+        attachment.setManagedFile(managedFile);
+        attachment.setFilePath("managed:"+managedFile.getId());
         attachment.setVehicle(vehicle);
         attachment.setUploadDate(java.time.LocalDateTime.now());
 
@@ -81,6 +80,7 @@ public class AttachmentService {
     }
 
     public List<AttachmentDTO> getAttachmentsByVehicleId(Long vehicleId) {
+        transport.vehicle(vehicleId);
         return attachmentRepository.findByVehicleId(vehicleId)
                 .stream()
                 .map(this::convertToDTO)
@@ -96,7 +96,12 @@ public class AttachmentService {
         Attachment attachment = attachmentRepository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Attachment not found with id: " + attachmentId));
 
-        Path filePath = Paths.get(attachment.getFilePath());
+        transport.vehicle(attachment.getVehicle().getId());
+        if(attachment.getArchivedAt()!=null)throw com.example.eac_backend_project.transport.TransportAccess.fail(404,"Attachment removed");
+        if(attachment.getManagedFile()!=null)return Files.readAllBytes(managed.download(attachment.getManagedFile().getId()).path());
+        if(attachment.getFilePath().startsWith("managed:"))throw com.example.eac_backend_project.transport.TransportAccess.fail(404,"Managed attachment was removed");
+        Path filePath = Paths.get(attachment.getFilePath()).toAbsolutePath().normalize();
+        if(!filePath.startsWith(fileStorageLocation))throw com.example.eac_backend_project.transport.TransportAccess.fail(403,"Invalid attachment storage path");
 
         // Check if file exists before reading
         if (!Files.exists(filePath)) {
@@ -107,27 +112,9 @@ public class AttachmentService {
     }
 
     public boolean deleteAttachment(Long attachmentId) {
-        Optional<Attachment> attachmentOpt = attachmentRepository.findById(attachmentId);
-        if (attachmentOpt.isPresent()) {
-            Attachment attachment = attachmentOpt.get();
-
-            try {
-                Path filePath = Paths.get(attachment.getFilePath());
-
-                // Check if file exists before attempting to delete
-                if (Files.exists(filePath)) {
-                    Files.deleteIfExists(filePath);
-                }
-
-                // Delete database record
-                attachmentRepository.delete(attachment);
-                return true;
-
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to delete file: " + attachment.getFileName(), e);
-            }
-        }
-        return false;
+        access.require("TRANSPORT_MANAGE_VEHICLES");
+        var found=attachmentRepository.findById(attachmentId);if(found.isEmpty())return false;
+        var attachment=found.get();transport.vehicle(attachment.getVehicle().getId());attachment.setArchivedAt(java.time.Instant.now());attachmentRepository.save(attachment);return true;
     }
 
     private AttachmentDTO convertToDTO(Attachment attachment) {

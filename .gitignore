@@ -52,3 +52,8 @@ backups/
 backup-settings/
 uploads/
 .codex-tmp/
+hs_err_pid*.log
+replay_pid*.log
+
+# Safe local profile template (secrets stay in .env.local)
+!src/main/resources/application-local.properties

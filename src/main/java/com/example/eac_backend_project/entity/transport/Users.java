@@ -7,6 +7,8 @@ import jakarta.persistence.Id;
 import lombok.Data;
 
 @Entity
+// V11 copies legacy contacts first; the system login table remains untouched.
+@jakarta.persistence.Table(name="transport_directory")
 
 public class Users {
 
@@ -17,6 +19,9 @@ public class Users {
     private String email;
     private String role;
     private String phone;
+    private java.time.Instant archivedAt;
+    public java.time.Instant getArchivedAt(){return archivedAt;}
+    public void setArchivedAt(java.time.Instant value){archivedAt=value;}
     public Long getId() {
         return id;
     }

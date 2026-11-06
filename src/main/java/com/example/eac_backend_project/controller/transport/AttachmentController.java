@@ -45,7 +45,8 @@ public class AttachmentController {
 
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error uploading files: " + e.getMessage());
+                    .body("Could not store attachments");
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(e.getMessage());
@@ -57,6 +58,7 @@ public class AttachmentController {
         try {
             List<AttachmentDTO> attachments = attachmentService.getAttachmentsByVehicleId(vehicleId);
             return ResponseEntity.ok(attachments);
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -74,14 +76,18 @@ public class AttachmentController {
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
             headers.setContentDispositionFormData("attachment", attachmentDTO.getFileName());
             headers.setContentLength(fileData.length);
+            headers.set("X-Content-Type-Options","nosniff");
+            headers.set("Content-Security-Policy","sandbox; default-src 'none'");
+            headers.setCacheControl("private, no-store");
 
             return new ResponseEntity<>(fileData, headers, HttpStatus.OK);
 
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(("Error reading file: " + e.getMessage()).getBytes());
+                    .body(("Could not read attachment").getBytes());
         }
     }
 
@@ -95,11 +101,13 @@ public class AttachmentController {
 
             HttpHeaders headers = new HttpHeaders();
             String contentType = getContentType(attachmentDTO.getFileName());
+            if(!java.util.Set.of("application/pdf","image/jpeg","image/png","image/webp","text/plain").contains(contentType))contentType="application/octet-stream";
             headers.setContentType(MediaType.parseMediaType(contentType));
             headers.setContentLength(fileData.length);
 
             return new ResponseEntity<>(fileData, headers, HttpStatus.OK);
 
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         } catch (IOException e) {
@@ -116,9 +124,10 @@ public class AttachmentController {
             } else {
                 return ResponseEntity.notFound().build();
             }
+        } catch (org.springframework.web.server.ResponseStatusException e) { throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error deleting attachment: " + e.getMessage());
+                    .body("Could not remove attachment");
         }
     }
 
@@ -137,6 +146,7 @@ public class AttachmentController {
             case "pdf": return "application/pdf";
             case "jpg": case "jpeg": return "image/jpeg";
             case "png": return "image/png";
+            case "webp": return "image/webp";
             case "gif": return "image/gif";
             case "bmp": return "image/bmp";
             case "svg": return "image/svg+xml";

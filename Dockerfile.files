@@ -1,0 +1,16 @@
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+COPY pom.xml ./
+COPY src ./src
+RUN mvn -B -DskipTests package
+
+FROM eclipse-temurin:17-jre-jammy
+WORKDIR /app
+# Preserve the existing backend image's runtime identity and MySQL backup CLI.
+# Changing its UID requires reviewing every existing upload/backup mount first.
+RUN apt-get update && apt-get install -y --no-install-recommends mysql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/lib/eac/files /var/lib/eac/file-backups /app/uploads
+COPY --from=build /build/target/*SNAPSHOT.jar /app/app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-Dspring.devtools.restart.enabled=false","-jar","/app/app.jar"]

@@ -8,6 +8,8 @@ import java.util.List;
 
 @Repository
 public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
+    boolean existsByFilePath(String path);
+
 
     List<Attachment> findByVehicleId(Long vehicleId);
 

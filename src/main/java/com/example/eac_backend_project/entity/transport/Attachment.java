@@ -13,6 +13,10 @@ public class Attachment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private java.time.Instant archivedAt;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="managed_file_id",foreignKey=@ForeignKey(name="fk_transport_legacy_managed_file",foreignKeyDefinition="FOREIGN KEY (managed_file_id) REFERENCES file_items(id) ON DELETE SET NULL"))
+    private com.example.eac_backend_project.files.FileItem managedFile;
 
     @Column(nullable = false)
     private String fileName;

@@ -13,6 +13,7 @@ public class Fuel {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private java.time.Instant archivedAt;
 
     @Column(name = "vehicle")
     private String vehicle;
@@ -22,6 +23,7 @@ public class Fuel {
     private Double litres;
     private Double cost;
     private String odometer;
+    @Transient private String odometerCorrectionReason;
 
     public Long getId() {
         return id;

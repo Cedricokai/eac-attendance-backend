@@ -15,6 +15,7 @@ public class Maintenance {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private java.time.Instant archivedAt;
     private String vehicles;
     private String maintenanceType;
     private LocalDate date;

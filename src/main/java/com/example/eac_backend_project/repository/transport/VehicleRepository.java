@@ -11,6 +11,9 @@ import java.util.Optional;
 
 @Repository
 public interface VehicleRepository extends JpaRepository<Vehicles, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from Vehicles v where v.id=:id")
+    Optional<Vehicles> lock(@Param("id") Long id);
     Optional<Vehicles> findByDvla(String dvla);
     List<Vehicles> findByStatus(String status);
     List<Vehicles> findByAssignedDriver(String assignedDriver);

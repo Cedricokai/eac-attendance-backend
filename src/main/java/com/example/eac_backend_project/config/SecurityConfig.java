@@ -98,6 +98,14 @@ public class SecurityConfig {
                             "/api/leave/quick-reject/**"
                     ).permitAll()
                     .requestMatchers("/api/public/hospital-visits/**").permitAll()
+                    .requestMatchers("/api/file-guests/**").permitAll()
+                    // These machine endpoints validate separate ONLYOFFICE signed tokens.
+                    .requestMatchers(HttpMethod.GET,"/api/onlyoffice/source").permitAll()
+                    .requestMatchers(HttpMethod.POST,"/api/onlyoffice/callback/*").permitAll()
+                    .requestMatchers("/api/files/**").authenticated()
+                    .requestMatchers("/communication-ws").permitAll()
+                    .requestMatchers("/api/communication/**").authenticated()
+                    .requestMatchers("/api/transport/**").authenticated()
 
                     // ========== ADD REPORTS ENDPOINTS HERE ==========
                     // Allow authenticated access to reports (they need JWT token)
@@ -137,6 +145,10 @@ public class SecurityConfig {
             List<EndpointPermission> permissions = endpointPermissionService.getAllActivePermissions();
 
             for (EndpointPermission permission : permissions) {
+                if (com.example.eac_backend_project.transport.TransportAccess.CODES.contains(java.util.Objects.toString(permission.getDescription(),""))) continue;
+                // File operations read current grants in FileOperationService,
+                // including revocations, rather than freezing them at startup.
+                if (com.example.eac_backend_project.files.FileOperationService.CODES.contains(java.util.Objects.toString(permission.getDescription(),"")) && java.util.Objects.toString(permission.getEndpointPattern(),"").startsWith("/api/files")) continue;
                 if (permission.getRoles().isEmpty() && permission.getUsers().isEmpty()) continue;
 
                 List<String> authorities = new ArrayList<>();

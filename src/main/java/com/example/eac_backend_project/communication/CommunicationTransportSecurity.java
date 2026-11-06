@@ -1,0 +1,8 @@
+package com.example.eac_backend_project.communication;
+import org.springframework.stereotype.Component;import org.springframework.beans.factory.annotation.Value;import org.springframework.web.filter.OncePerRequestFilter;import jakarta.servlet.*;import jakarta.servlet.http.*;import java.io.IOException;
+@Component public class CommunicationTransportSecurity extends OncePerRequestFilter {
+ private final CommunicationAccess access;private final CommunicationAuditService audit;
+ public CommunicationTransportSecurity(CommunicationAccess access,CommunicationAuditService audit){this.access=access;this.audit=audit;}
+ @Value("${app.communication.require-tls:false}")private boolean requireTls;
+ @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain)throws ServletException,IOException{String p=request.getRequestURI();if(requireTls&&(p.startsWith("/api/communication/")||p.equals("/communication-ws"))&&!request.isSecure()){response.setStatus(426);response.setContentType("application/json");response.getWriter().write("{\"message\":\"HTTPS is required for communication\"}");return;}try{chain.doFilter(request,response);}finally{if(p.startsWith("/api/communication/admin/")||p.startsWith("/api/communication/messages/")&&request.getHeader("X-Communication-Review-Reason")!=null){try{audit.write(access.account(),response.getStatus()<400?"ADMIN_REQUEST_COMPLETED":"ADMIN_REQUEST_FAILED",null,request.getHeader("X-Communication-Review-Reason"),"status="+response.getStatus()+",path="+p);}catch(RuntimeException ex){org.slf4j.LoggerFactory.getLogger(getClass()).warn("Communication request outcome audit could not be recorded");}}}}
+}

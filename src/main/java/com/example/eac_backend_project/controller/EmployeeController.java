@@ -37,6 +37,19 @@ public class EmployeeController {
     @Autowired
     private SmsService smsService;
 
+    @Autowired
+    private com.example.eac_backend_project.communication.CommunicationService communicationService;
+
+    /** Safe directory projection on the existing employee-list API. */
+    @GetMapping(params = "view=communication")
+    public ResponseEntity<?> communicationDirectory(@RequestParam(defaultValue = "") String q) {
+        try {
+            return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(communicationService.employeeDirectoryView(q));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("message", java.util.Objects.requireNonNullElse(e.getReason(), "Employee directory unavailable")));
+        }
+    }
+
     public EmployeeController(EmployeeService employeeService) {
         this.employeeService = employeeService;
     }

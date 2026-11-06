@@ -1,0 +1,115 @@
+-- V9: additive internal communication tables. No existing data is removed.
+CREATE TABLE IF NOT EXISTS communication_conversations (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ direct_key VARCHAR(90),
+ type VARCHAR(24) NOT NULL,
+ name VARCHAR(140) NOT NULL,
+ description VARCHAR(1000),
+ group_type VARCHAR(24),
+ announcements BOOLEAN,
+ last_sequence BIGINT,
+ creator_id BIGINT,
+ created_at DATETIME(6),
+ updated_at DATETIME(6),
+ deleted_at DATETIME(6),
+ retain_until DATETIME(6),
+ deleted_by BIGINT,
+ revision BIGINT,
+ CONSTRAINT uq_comm_direct UNIQUE (direct_key)
+);
+CREATE TABLE IF NOT EXISTS communication_participants (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ conversation_id BIGINT,
+ user_id BIGINT,
+ left_at DATETIME(6),
+ joined_at DATETIME(6),
+ joined_sequence BIGINT,
+ last_read BIGINT,
+ last_delivered BIGINT,
+ manager BOOLEAN,
+ muted BOOLEAN,
+ pinned BOOLEAN,
+ archived BOOLEAN,
+ CONSTRAINT uq_comm_participant UNIQUE (conversation_id,user_id),
+ INDEX idx_comm_member (user_id,left_at),
+ CONSTRAINT fk_comm_participant_conversation FOREIGN KEY (conversation_id) REFERENCES communication_conversations(id),
+ CONSTRAINT fk_comm_participant_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS communication_messages (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ conversation_id BIGINT,
+ sender_id BIGINT,
+ client_id VARCHAR(80) NOT NULL,
+ sequence_number BIGINT NOT NULL,
+ ciphertext LONGBLOB NOT NULL,
+ reply_to BIGINT,
+ forwarded_from BIGINT,
+ pinned BOOLEAN,
+ reactions LONGTEXT,
+ created_at DATETIME(6),
+ edited_at DATETIME(6),
+ deleted_at DATETIME(6),
+ deleted_by BIGINT,
+ retain_until DATETIME(6),
+ deletion_reason VARCHAR(500),
+ CONSTRAINT uq_comm_sequence UNIQUE (conversation_id,sequence_number),
+ CONSTRAINT uq_comm_retry UNIQUE (conversation_id,sender_id,client_id),
+ INDEX idx_comm_history (conversation_id,sequence_number),
+ CONSTRAINT fk_comm_message_conversation FOREIGN KEY (conversation_id) REFERENCES communication_conversations(id),
+ CONSTRAINT fk_comm_message_sender FOREIGN KEY (sender_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS communication_policy (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ enabled BOOLEAN,
+ groups_enabled BOOLEAN,
+ files_enabled BOOLEAN,
+ voice_enabled BOOLEAN,
+ editing_enabled BOOLEAN,
+ deletion_enabled BOOLEAN,
+ conversation_deletion_enabled BOOLEAN,
+ group_moderator_deletion BOOLEAN,
+ group_creation_enabled BOOLEAN,
+ membership_management_enabled BOOLEAN,
+ presence_enabled BOOLEAN,
+ receipts_enabled BOOLEAN,
+ backups_enabled BOOLEAN,
+ edit_minutes INT,
+ delete_minutes INT,
+ retention_days INT,
+ max_voice_seconds INT,
+ max_attachment_bytes BIGINT,
+ backup_retention_days INT,
+ backup_interval_hours INT,
+ updated_by BIGINT,
+ updated_at DATETIME(6)
+);
+CREATE TABLE IF NOT EXISTS communication_audit (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ actor_id BIGINT,
+ actor VARCHAR(200),
+ action VARCHAR(60),
+ conversation_id BIGINT,
+ reason VARCHAR(500),
+ details LONGTEXT,
+ created_at DATETIME(6)
+);
+CREATE TABLE IF NOT EXISTS communication_uploads (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ file_id BIGINT,
+ conversation_id BIGINT,
+ owner_id BIGINT,
+ context VARCHAR(80),
+ metadata LONGBLOB,
+ created_at DATETIME(6),
+ CONSTRAINT uq_comm_upload UNIQUE (file_id)
+);
+CREATE TABLE IF NOT EXISTS communication_backups (
+ id VARCHAR(36) PRIMARY KEY,
+ created_at DATETIME(6),
+ expires_at DATETIME(6),
+ actor_id BIGINT,
+ status VARCHAR(30),
+ checksum VARCHAR(64),
+ size_bytes BIGINT,
+ error VARCHAR(500)
+);

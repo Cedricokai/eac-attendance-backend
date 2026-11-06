@@ -15,6 +15,7 @@ public class Drivers {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private java.time.Instant archivedAt;
     private String driverName;
     private String licenseNumber;
     private LocalDate licenseExpiry;

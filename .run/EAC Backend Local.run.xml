@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="EAC Backend Local" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.example.eac_backend_project.EacBackendProjectApplication" />
+    <module name="eac_backend-project" />
+    <option name="PROGRAM_PARAMETERS" value="--spring.profiles.active=local" />
+    <option name="VM_PARAMETERS" value="-Dspring.devtools.restart.enabled=false" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

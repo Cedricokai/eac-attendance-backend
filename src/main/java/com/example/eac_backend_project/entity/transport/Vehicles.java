@@ -12,6 +12,7 @@ public class Vehicles {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private java.time.Instant archivedAt;
 
     private String name;
     private String type;

@@ -93,6 +93,9 @@ public class PageAutoSeeder {
                 new PageDefinition("Transport Users", "/usersmanagement", "Transport users management", "Users", false, 95, "ROLE_TRANSPORT", "ROLE_ADMIN"),
                 new PageDefinition("Transport Reports", "/transportReports", "Transport reports", "FileBarChart", false, 96, "ROLE_TRANSPORT", "ROLE_ADMIN"),
 
+                // File suite uses existing role and user page assignments.
+                new PageDefinition("File Management", "/files", "Company files and native editors", "FolderOpen", false, 97, "ROLE_ADMIN"),
+
                 // Admin & Settings
                 new PageDefinition("Central Dashboard", "/centralizedDashboard", "Central dashboard", "LayoutDashboard", false, 100, "ROLE_ADMIN"),
                 new PageDefinition("User Management", "/Userpage", "User management panel", "Users", false, 101, "ROLE_ADMIN"),

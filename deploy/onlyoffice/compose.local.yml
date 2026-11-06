@@ -1,0 +1,42 @@
+name: eac-office-local
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:10.0.0@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
+    ports:
+      - "127.0.0.1:8082:80"
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Run start-onlyoffice.ps1 to prepare a separate secret}
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "false"
+      WOPI_ENABLED: "false"
+      ALLOW_PRIVATE_IP_ADDRESS: "false"
+      ALLOW_META_IP_ADDRESS: "false"
+      NODE_CONFIG: '{"services":{"CoAuthoring":{"request-filtering-agent":{"allowPrivateIPAddress":false,"allowMetaIPAddress":false,"allowIPAddressList":["${ONLYOFFICE_BACKEND_IP:?Run start-onlyoffice.ps1 to resolve the backend address}"]}}}}'
+    extra_hosts:
+      - "host.docker.internal:${ONLYOFFICE_BACKEND_IP:?Run start-onlyoffice.ps1}"
+    volumes:
+      - office_data:/var/www/onlyoffice/Data
+      - office_lib:/var/lib/onlyoffice
+      - office_postgres:/var/lib/postgresql
+      - office_logs:/var/log/onlyoffice
+    shm_size: 1gb
+    mem_limit: 5g
+    cpus: 2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost/healthcheck"]
+      interval: 15s
+      timeout: 10s
+      start_period: 120s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  office_data:
+  office_lib:
+  office_postgres:
+  office_logs:

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EAC Sheet Access</title><link rel="stylesheet" href="style.css"><script src="plugins.js"></script></head>
+<body><main><h1>Sheet access</h1><p>Keep one workbook and choose who may view or edit each sheet in ONLYOFFICE.</p>
+<p id="status" role="status">Reading workbook permissions…</p>
+<label for="sheet">Worksheet</label><select id="sheet" disabled></select>
+<p id="policy"></p>
+<section id="manager" hidden><h2>Allowed employees</h2><p>The file owner keeps access. Employees need workbook sharing access first.</p><div id="employees"></div><button id="apply" disabled>Apply sheet restriction</button><p>Save the workbook in ONLYOFFICE to commit the rule and create a saved version.</p></section>
+<p class="scope">Employee sheet permissions apply online. Downloads require owner permission and access to every sheet. Standard cell locks remain in saved XLSX exports.</p>
+</main><script src="commands.js?v=11"></script><script src="cell-locks.js?v=11"></script><script src="sheet-access.js?v=11"></script></body></html>

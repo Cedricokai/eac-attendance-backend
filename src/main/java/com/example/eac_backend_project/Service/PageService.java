@@ -53,6 +53,7 @@ public class PageService {
         // Filter active pages only
         return allAccessiblePages.stream()
                 .filter(Page::getIsActive)
+                .filter(p -> !"/admin/communications".equals(p.getPath()) || userOpt.map(u -> u.getRole() != null && "ROLE_ADMIN".equals(u.getRole().getName())).orElse(false))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }

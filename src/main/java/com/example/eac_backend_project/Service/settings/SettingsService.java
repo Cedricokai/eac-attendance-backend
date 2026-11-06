@@ -702,13 +702,22 @@ public class SettingsService {
         }
     }
 
+    static List<Integer> parseWeekendDays(String stored) {
+        if(stored==null||stored.isBlank()) return new ArrayList<>();
+        String value=stored.trim();
+        try {
+            List<Integer> days=value.startsWith("[")?new com.fasterxml.jackson.databind.ObjectMapper().readValue(value,new TypeReference<List<Integer>>(){}):Arrays.stream(value.split(",",-1)).map(String::trim).map(Integer::valueOf).toList();
+            if(days.stream().anyMatch(day->day==null||day<0||day>6))throw new IllegalArgumentException("Weekend days must be between 0 (Sunday) and 6 (Saturday)");
+            return new ArrayList<>(new java.util.LinkedHashSet<>(days));
+        }catch(java.io.IOException e){throw new IllegalArgumentException("Invalid weekend-day settings",e);}
+    }
     public List<Integer> getWeekendDays() {
         try {
             SystemSettings settings = getSystemSettings();
             if (settings.getWeekendDays() == null || settings.getWeekendDays().trim().isEmpty()) {
                 return new ArrayList<>();
             }
-            return objectMapper.readValue(settings.getWeekendDays(), new TypeReference<List<Integer>>() {});
+            return parseWeekendDays(settings.getWeekendDays());
         } catch (Exception e) {
             logger.error("Error parsing weekend days", e);
             return new ArrayList<>();
@@ -789,12 +798,7 @@ public class SettingsService {
         // Handle weekendDays conversion from String to List<Integer>
         try {
             if (settings.getWeekendDays() != null && !settings.getWeekendDays().isEmpty()) {
-                String[] days = settings.getWeekendDays().split(",");
-                List<Integer> weekendDaysList = new ArrayList<>();
-                for (String day : days) {
-                    weekendDaysList.add(Integer.parseInt(day.trim()));
-                }
-                dto.setWeekendDays(weekendDaysList);
+                dto.setWeekendDays(parseWeekendDays(settings.getWeekendDays()));
             } else {
                 dto.setWeekendDays(Arrays.asList(0, 6));
             }
