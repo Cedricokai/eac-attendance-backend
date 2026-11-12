@@ -15,6 +15,7 @@ import static org.springframework.http.HttpStatus.*;
 @Service @Transactional(rollbackFor=Exception.class)
 public class OfficeSheetAccessService {
  @org.springframework.beans.factory.annotation.Autowired private OfficePasswordVault passwords;
+ @org.springframework.beans.factory.annotation.Autowired private com.example.eac_backend_project.repository.EmployeeRepository employeeDirectory;
  private final FileSuiteService files;private final FileOperationService operations;private final UserRepository users;private final OfficeSheetPolicyRepository policies;private final OfficeSheetPolicyAuditRepository audits;private final ObjectMapper json;
  public OfficeSheetAccessService(FileSuiteService files,FileOperationService operations,UserRepository users,OfficeSheetPolicyRepository policies,OfficeSheetPolicyAuditRepository audits,ObjectMapper json){this.files=files;this.operations=operations;this.users=users;this.policies=policies;this.audits=audits;this.json=json;}
  public record Grant(Long userId,String access){}
@@ -37,9 +38,23 @@ public class OfficeSheetAccessService {
  private List<OfficeWorkbookInspection.Rule> rules(OfficeSheetPolicy policy)throws IOException{return json.readValue(policy.getRules(),new TypeReference<List<OfficeWorkbookInspection.Rule>>(){});}
  public List<User> administrators(){return users.findByEnabledTrue().stream().filter(FileSuiteService::admin).toList();}
  private List<OfficeWorkbookInspection.Rule> effective(FileItem f,List<OfficeWorkbookInspection.Rule> source){var mandatory=new ArrayList<>(administrators());mandatory.add(f.getOwner());return source.stream().map(rule->{Map<String,String> members=new LinkedHashMap<>(rule.restricted()?rule.members():Map.of());if(rule.restricted())mandatory.forEach(user->members.put(uid(user),"CanEdit"));return new OfficeWorkbookInspection.Rule(rule.name(),rule.restricted(),members);}).toList();}
+ private List<Person> directory(FileItem file){
+  var enabled=users.findByEnabledTrue();
+  var byEmployee=new HashMap<Long,List<User>>();
+  for(var account:enabled)if(account.getEmployee()!=null)byEmployee.computeIfAbsent(account.getEmployee().getId(),ignored->new ArrayList<>()).add(account);
+  Map<String,Person> result=new LinkedHashMap<>();
+  for(var employee:employeeDirectory.findAll()){
+   String name=(Objects.toString(employee.getFirstName(),"")+" "+Objects.toString(employee.getLastName(),"")).trim();
+   var accounts=Boolean.FALSE.equals(employee.getActive())?List.<User>of():byEmployee.getOrDefault(employee.getId(),List.of());
+   if(accounts.isEmpty()){String id="employee-"+employee.getId();result.put(id,new Person(null,id,name,employee.getEmployeeId(),null,false,false));}
+   else for(var account:accounts)result.put(uid(account),new Person(account.getId(),uid(account),name.isBlank()?account.getName():name,employee.getEmployeeId(),files.access(file,account,false),operations.allows(account,"FILE_EDIT"),FileSuiteService.admin(account)));
+  }
+  for(var account:enabled)if(FileSuiteService.admin(account)||account.getId().equals(file.getOwner().getId()))result.putIfAbsent(uid(account),new Person(account.getId(),uid(account),account.getName(),"",files.access(file,account,false),true,FileSuiteService.admin(account)));
+  return result.values().stream().sorted(Comparator.comparing(p->Objects.toString(p.name(),""),String.CASE_INSENSITIVE_ORDER)).toList();
+ }
  public State state(Long id)throws IOException{
   User user=files.currentUser();FileItem f=workbook(id);boolean manage=manager(f,user);var stored=policies.findById(id).orElse(null);var nativeRules=canonical(f);var rules=effective(f,stored==null?nativeRules:rules(stored));
-  List<Person> people=manage?users.findByEnabledTrue().stream().filter(u->FileSuiteService.admin(u)||(u.getEmployee()!=null&&!Boolean.FALSE.equals(u.getEmployee().getActive()))).map(u->{String access=files.access(f,u,false);return new Person(u.getId(),uid(u),Objects.toString(u.getName(),u.getUserName()),u.getEmployee()==null?"":u.getEmployee().getEmployeeId(),access,operations.allows(u,"FILE_EDIT"),FileSuiteService.admin(u));}).toList():List.of();
+  List<Person> people=manage?directory(f):List.of();
   List<Audit> history=manage?audits.findTop50ByFileIdOrderByIdDesc(id).stream().map(a->new Audit(a.getPolicyVersion(),a.getActorName(),a.getCreatedAt())).toList():List.of();
   // Preserve every actual sheet tab; renamed/new sheets require an owner to reconcile policy.
   Map<String,OfficeWorkbookInspection.Rule> byName=new LinkedHashMap<>();rules.forEach(rule->byName.put(rule.name(),rule));

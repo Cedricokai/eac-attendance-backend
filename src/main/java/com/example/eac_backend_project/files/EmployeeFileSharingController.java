@@ -17,6 +17,6 @@ public class EmployeeFileSharingController {
 
     @GetMapping("/file-sharing")
     public Object recipients(@RequestParam(defaultValue = "") String q,@RequestParam(defaultValue = "2000") int limit) {
-        return files.people(q,limit);
+        return files.sharingDirectory(q,limit);
     }
 }

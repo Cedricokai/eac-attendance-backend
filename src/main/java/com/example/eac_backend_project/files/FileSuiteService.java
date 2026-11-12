@@ -35,6 +35,7 @@ public class FileSuiteService {
     private final FileSettingsRepository settings;
     private final FileEventRepository events;
     private final UserRepository users;
+    @org.springframework.beans.factory.annotation.Autowired private com.example.eac_backend_project.repository.EmployeeRepository employeeDirectory;
     private final PageService pages;
     private final ActivityLogService activity;
     private final EmailService email;
@@ -242,6 +243,19 @@ public class FileSuiteService {
     public Download download(Long id,Long number) { User user=currentUser();operations.require(user,"FILE_DOWNLOAD"); FileItem file=item(id); require(file,user,"VIEWER",false); if(file.isFolder()) throw fail(400,"Folders cannot be downloaded as files"); requireDownloadAllowed(file,user); sheetGuard.requireWholeWorkbook(file,user); FileVersion version=versions.findByItem_IdAndNumber(id,number==null?file.getCurrentVersion():number).orElseThrow(()->fail(404,"Version not found")); event(file,user,"DOWNLOAD"); return new Download(store.path(version.getStorageKey()),file.getName(),version.getMediaType()); }
     public List<VersionView> history(Long id) { User user=currentUser(); FileItem file=item(id); require(file,user,"VIEWER",false); return versions.findByItem_IdOrderByNumberDesc(id).stream().map(v->new VersionView(v.getNumber(),v.getSizeBytes(),v.getChecksum(),v.getActorLabel()==null?v.getEditor().getName():v.getActorLabel(),v.getCreatedAt(),v.getReason(),v.getMediaType())).toList(); }
     public ItemView restoreVersion(Long id,long number,Long expected) throws IOException { quotaLock(); User user=currentUser();operations.require(user,"FILE_RESTORE"); FileItem file=locked(id); require(file,user,"EDITOR",false); sheetGuard.requireWorkbookEdit(file,user); noLive(file); revision(file,expected); FileVersion version=versions.findByItem_IdAndNumber(id,number).orElseThrow(()->fail(404,"Version not found")); try(InputStream in=Files.newInputStream(store.path(version.getStorageKey()))){append(file,user,in,version.getMediaType(),"Restored from v"+number);} newEpoch(file); event(file,user,"RESTORE_VERSION"); return view(file,user,false); }
+    public List<Person> sharingDirectory(String query,int limit){
+        checkOperation("FILE_SHARE");
+        String term=Objects.toString(query,"").trim().toLowerCase(Locale.ROOT);
+        var accounts=users.findByEnabledTrue().stream().filter(u->u.getEmployee()!=null).collect(Collectors.groupingBy(u->u.getEmployee().getId()));
+        return employeeDirectory.findAll().stream().flatMap(e->{
+            String name=(Objects.toString(e.getFirstName(),"")+" "+Objects.toString(e.getLastName(),"")).trim();
+            String department=e.getCategory()==null?"":e.getCategory().getName();
+            var linked=Boolean.FALSE.equals(e.getActive())?List.<User>of():accounts.getOrDefault(e.getId(),List.of());
+            if(linked.isEmpty())return Stream.of(new Person(null,name,e.getEmail(),e.getEmployeeId(),department));
+            return linked.stream().map(u->new Person(u.getId(),name.isBlank()?u.getName():name,e.getEmail()==null?u.getEmail():e.getEmail(),e.getEmployeeId(),department));
+        }).filter(p->(p.name()+" "+p.email()+" "+p.employeeId()+" "+p.department()).toLowerCase(Locale.ROOT).contains(term))
+          .sorted(Comparator.comparing(p->Objects.toString(p.name(),""),String.CASE_INSENSITIVE_ORDER)).limit(Math.max(1,Math.min(2000,limit))).toList();
+    }
     public List<Person> people(String query) { return people(query,30); }
     public List<Person> people(String query,int limit) { checkOperation("FILE_SHARE"); String q=query==null?"":query.toLowerCase(Locale.ROOT); return users.findByEnabledTrue().stream().filter(u->u.getEmployee()!=null&&!Boolean.FALSE.equals(u.getEmployee().getActive())).map(u->{var e=u.getEmployee();String name=Stream.of(e.getFirstName(),e.getLastName()).filter(Objects::nonNull).collect(Collectors.joining(" ")).trim();return new Person(u.getId(),name.isBlank()?u.getName():name,e.getEmail()==null?u.getEmail():e.getEmail(),e.getEmployeeId(),e.getCategory()==null?"":e.getCategory().getName());}).filter(p->(p.name()+" "+p.email()+" "+p.employeeId()+" "+p.department()).toLowerCase(Locale.ROOT).contains(q)).limit(Math.max(1,Math.min(2000,limit))).toList(); }
     public List<ShareView> shares(Long id) { User user=currentUser();if(!operations.allows(user,"FILE_SHARE")&&!operations.allows(user,"FILE_MANAGE_ACCESS"))operations.require(user,"FILE_MANAGE_ACCESS"); FileItem file=item(id); require(file,user,"MANAGER",false); return permissions.findByItem_Id(id).stream().map(p->new ShareView(p.getId(),p.getRecipient().getId(),p.getRecipient().getName(),p.getRecipient().getEmail(),p.getAccess().name(),p.getGrantedAt(),p.getExpiresAt(),!p.isDownloadBlocked())).toList(); }
